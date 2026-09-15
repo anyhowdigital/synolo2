@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Inter, JetBrains_Mono } from "next/font/google";
+import localFont from "next/font/local";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { THEME_INIT_SCRIPT } from "@/components/theme-toggle";
@@ -8,14 +8,12 @@ import { OfflineQueueBanner } from "@/components/pwa/offline-queue-banner";
 import "./globals.css";
 import "@/components/marketing/public.css";
 
-const inter = Inter({
+const notoSans = localFont({
   variable: "--font-sans",
-  subsets: ["latin", "greek"],
-});
-
-const mono = JetBrains_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin", "greek"],
+  src: [
+    { path: "../../public/fonts/NotoSans-Regular.ttf", weight: "400", style: "normal" },
+    { path: "../../public/fonts/NotoSans-Bold.ttf", weight: "700", style: "normal" },
+  ],
 });
 
 /**
@@ -40,7 +38,7 @@ export const viewport: Viewport = { themeColor: "#23645d" };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="el" className={`${inter.variable} ${mono.variable} h-full antialiased`} suppressHydrationWarning>
+    <html lang="el" className={`${notoSans.variable} h-full antialiased`} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
       </head>

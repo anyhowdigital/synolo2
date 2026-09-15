@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start -H 0.0.0.0 -p 3000",
     "start:prod": "next start -H 0.0.0.0 -p 3000",
-    "lint": "eslint",
+    "lint": "eslint src",
     "db:generate": "drizzle-kit generate",
     "typecheck": "next typegen && tsc --noEmit"
   },

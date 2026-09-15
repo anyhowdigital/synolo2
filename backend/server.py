@@ -76,6 +76,39 @@ def _require_llm() -> None:
         raise HTTPException(status_code=503, detail="EMERGENT_LLM_KEY δεν είναι ρυθμισμένο.")
 
 
+def _import_chat_stream() -> tuple[Any, Any, Any, Any]:
+    try:
+        from emergentintegrations.llm.chat import LlmChat, StreamDone, TextDelta, UserMessage
+    except ImportError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="Οι AI λειτουργίες δεν είναι διαθέσιμες γιατί λείπει το προαιρετικό πακέτο chat.",
+        ) from exc
+    return LlmChat, UserMessage, TextDelta, StreamDone
+
+
+def _import_chat_file() -> tuple[Any, Any, Any]:
+    try:
+        from emergentintegrations.llm.chat import FileContent, LlmChat, UserMessage
+    except ImportError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="Οι AI λειτουργίες δεν είναι διαθέσιμες γιατί λείπει το προαιρετικό πακέτο chat.",
+        ) from exc
+    return LlmChat, UserMessage, FileContent
+
+
+def _import_chat() -> tuple[Any, Any]:
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+    except ImportError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="Οι AI λειτουργίες δεν είναι διαθέσιμες γιατί λείπει το προαιρετικό πακέτο chat.",
+        ) from exc
+    return LlmChat, UserMessage
+
+
 # ---------------- Copilot chat ----------------
 class CopilotContext(BaseModel):
     org_name: str = ""
@@ -116,7 +149,7 @@ COPILOT_SYSTEM = """Είσαι το «Copilot Λογιστηρίου» της ε
 @app.post("/api/copilot/chat")
 async def copilot_chat(req: CopilotRequest) -> StreamingResponse:
     _require_llm()
-    from emergentintegrations.llm.chat import LlmChat, UserMessage, TextDelta, StreamDone
+    LlmChat, UserMessage, TextDelta, StreamDone = _import_chat_stream()
 
     session_id = req.session_id or f"copilot-{uuid.uuid4()}"
     ctx_json = req.context.model_dump() if req.context else {}
@@ -185,7 +218,7 @@ OCR_SYSTEM = """Είσαι εξειδικευμένο OCR για ελληνικ�
 @app.post("/api/ocr/expense")
 async def ocr_expense(req: OcrRequest) -> dict[str, Any]:
     _require_llm()
-    from emergentintegrations.llm.chat import LlmChat, UserMessage, FileContent
+    LlmChat, UserMessage, FileContent = _import_chat_file()
 
     if not req.file_data_url.startswith("data:"):
         raise HTTPException(400, "Απαιτείται data URL με base64.")
@@ -293,7 +326,7 @@ Credit score:
 @app.post("/api/copilot/dunning")
 async def dunning_generate(req: DunningRequest) -> dict[str, Any]:
     _require_llm()
-    from emergentintegrations.llm.chat import LlmChat, UserMessage
+    LlmChat, UserMessage = _import_chat()
 
     session_id = f"dunning-{uuid.uuid4()}"
     chat = LlmChat(api_key=EMERGENT_LLM_KEY, session_id=session_id, system_message=DUNNING_SYSTEM).with_model("anthropic", "claude-sonnet-5")
@@ -360,7 +393,7 @@ RISK_SYSTEM = """Είσαι Έλληνας φοροτεχνικός σύμβου
 @app.post("/api/copilot/risk-advice")
 async def risk_advice(req: RiskAdviceRequest) -> dict[str, Any]:
     _require_llm()
-    from emergentintegrations.llm.chat import LlmChat, UserMessage
+    LlmChat, UserMessage = _import_chat()
 
     chat = LlmChat(
         api_key=EMERGENT_LLM_KEY,
@@ -459,7 +492,7 @@ controller για ελληνικές επιχειρήσεις. Λαμβάνει�
 @app.post("/api/copilot/collections")
 async def collections_plan(req: CollectionsRequest) -> dict[str, Any]:
     _require_llm()
-    from emergentintegrations.llm.chat import LlmChat, UserMessage
+    LlmChat, UserMessage = _import_chat()
 
     chat = LlmChat(
         api_key=EMERGENT_LLM_KEY,
@@ -519,7 +552,7 @@ OFFICE_BRIEF_SYSTEM = """Είσαι ο «Βοηθός Γραφείου» ενό�
 @app.post("/api/copilot/office-brief")
 async def office_brief(req: OfficeBriefRequest) -> dict[str, Any]:
     _require_llm()
-    from emergentintegrations.llm.chat import LlmChat, UserMessage
+    LlmChat, UserMessage = _import_chat()
 
     chat = LlmChat(
         api_key=EMERGENT_LLM_KEY,
@@ -586,7 +619,7 @@ BANK_MATCH_SYSTEM = """Είσαι έμπειρος Έλληνας λογιστή
 @app.post("/api/copilot/bank-match")
 async def bank_match(req: BankMatchRequest) -> dict[str, Any]:
     _require_llm()
-    from emergentintegrations.llm.chat import LlmChat, UserMessage
+    LlmChat, UserMessage = _import_chat()
 
     chat = LlmChat(
         api_key=EMERGENT_LLM_KEY,
@@ -640,7 +673,7 @@ TAX_ADVISOR_SYSTEM = """Είσαι ο «Σύμβουλος Βελτιστοπο�
 @app.post("/api/copilot/tax-advisor")
 async def tax_advisor_chat(req: TaxAdvisorChatRequest) -> dict[str, Any]:
     _require_llm()
-    from emergentintegrations.llm.chat import LlmChat, UserMessage
+    LlmChat, UserMessage = _import_chat()
 
     session_id = req.session_id or f"tax-advisor-{uuid.uuid4()}"
     system_message = TAX_ADVISOR_SYSTEM + "\n\n### Context (JSON):\n" + json.dumps(req.context, ensure_ascii=False, indent=2)
