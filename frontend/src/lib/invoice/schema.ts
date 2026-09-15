@@ -16,7 +16,7 @@ const lineSchema = z.object({
   stampDutyCategory: z.coerce.number().int().min(0).default(0),
 });
 
-export const invoicePayloadSchema = z.object({
+export const invoicePayloadBaseSchema = z.object({
   id: z.string().optional(),
   customerId: z.string().nullable(),
   seriesId: z.string().min(1, "Επιλέξτε σειρά παραστατικού."),
@@ -44,6 +44,11 @@ export const invoicePayloadSchema = z.object({
   warehouseId: z.string().nullable().optional(),
   lines: z.array(lineSchema).min(1, "Προσθέστε τουλάχιστον μία γραμμή."),
   issueNow: z.boolean().default(false),
-  }).refine((value) => !value.dueDate || value.dueDate >= value.issueDate, { message: "Η λήξη δεν μπορεί να προηγείται της έκδοσης.", path: ["dueDate"] });
+});
+
+export const invoicePayloadSchema = invoicePayloadBaseSchema.refine((value) => !value.dueDate || value.dueDate >= value.issueDate, {
+  message: "Η λήξη δεν μπορεί να προηγείται της έκδοσης.",
+  path: ["dueDate"],
+});
 
 export type InvoicePayload = z.infer<typeof invoicePayloadSchema>;

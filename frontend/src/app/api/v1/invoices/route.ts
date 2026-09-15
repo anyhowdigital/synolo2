@@ -5,7 +5,7 @@ import { series } from "@/db/schema";
 import { apiError, apiJson, requireApiOrg } from "@/lib/api/auth";
 import { getInvoiceWithLines, issueInvoice, listInvoices, saveDraft, transmitToMyData } from "@/lib/services/invoices";
 import { serializeInvoice } from "@/lib/api/serializers";
-import { invoicePayloadSchema } from "@/lib/invoice/schema";
+import { invoicePayloadBaseSchema } from "@/lib/invoice/schema";
 import { defsFor, normalizeTags, serializeTags, validateCustomFieldValues } from "@/lib/services/custom-fields";
 
 export async function GET(req: Request) {
@@ -30,11 +30,17 @@ export async function GET(req: Request) {
   }, headers);
 }
 
-const createSchema = invoicePayloadSchema.omit({ id: true, seriesId: true, issueNow: true }).extend({
-  series: z.string().min(1, "Απαιτείται κωδικός σειράς (π.χ. ΤΠΥ)."),
-  issue: z.boolean().default(false),
-  transmit: z.boolean().default(false),
-});
+const createSchema = invoicePayloadBaseSchema
+  .omit({ id: true, seriesId: true, issueNow: true })
+  .extend({
+    series: z.string().min(1, "Απαιτείται κωδικός σειράς (π.χ. ΤΠΥ)."),
+    issue: z.boolean().default(false),
+    transmit: z.boolean().default(false),
+  })
+  .refine((value) => !value.dueDate || value.dueDate >= value.issueDate, {
+    message: "Η λήξη δεν μπορεί να προηγείται της έκδοσης.",
+    path: ["dueDate"],
+  });
 
 export async function POST(req: Request) {
   const db = await getDb();
