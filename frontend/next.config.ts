@@ -1,6 +1,13 @@
 import type { NextConfig } from "next";
 
-const publicOrigins = [process.env.APP_URL!, process.env.REACT_APP_BACKEND_URL!, ...(process.env.NEXT_ADDITIONAL_ORIGINS?.split(",") ?? [])].map((origin) => new URL(origin));
+const publicOrigins = [
+  process.env.APP_URL,
+  process.env.REACT_APP_BACKEND_URL,
+  ...(process.env.NEXT_ADDITIONAL_ORIGINS?.split(",") ?? []),
+]
+  .map((origin) => origin?.trim())
+  .filter((origin): origin is string => Boolean(origin))
+  .map((origin) => new URL(origin));
 
 const nextConfig: NextConfig = {
   agentRules: false,
