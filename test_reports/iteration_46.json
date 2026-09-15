@@ -1,0 +1,132 @@
+{
+  "summary": "Read-only frontend verification of the unified office 'findings' source (inbox/alerts/cockpit), deep-link route /office/open, /office/tasks + /office/calendar, branding rename 'Τιμολόγιο Cloud' → 'Σύνολο ERP', and mobile 390px overflow. Most checks PASS. One CRITICAL bug found: the /office/open deep-link route redirects to https://0.0.0.0:3000/... breaking every finding-open-* and cockpit-open-* link (the exact functionality this iteration was asked to verify).",
+  "environment": {
+    "base_url": "https://cashflow-pro-295.preview.emergentagent.com",
+    "office_user": "office@koletsas.gr",
+    "business_user": "demo@timologio.gr"
+  },
+  "test_results": {
+    "office_inbox_renders": {
+      "status": "PASS",
+      "inbox_summary_text": "7 θέματα σε 1 πελάτες · 3 κρίσιμα, 3 προσοχή. Ίδια πηγή ευρημάτων με «Λάθη & προσοχή» και Cockpit. Εβδομαδιαίο digest κάθε Δευτέρα 08:00.",
+      "inbox_source_filters_present": true,
+      "filter_testids_seen": ["inbox-filter-books", "inbox-filter-task", "inbox-filter-doc"],
+      "note_on_filters": "Requirement mentions 'inbox-filter-mydata' as an example, but no mydata findings exist for this office account so the filter is not rendered. Filters for the sources actually present (books/task/doc) are shown. Sources match the codes rendered by findings-list.",
+      "inbox_list_present": true,
+      "finding_testids_sample": [
+        "finding-books-apd_due",
+        "finding-books-customer_afm_missing",
+        "finding-books-invoice_in_locked_period",
+        "finding-books-vat_zero_check",
+        "finding-doc-doc_requests_open",
+        "finding-task-task_overdue"
+      ],
+      "books_filter_click_isolation": {"books": 4, "mydata": 0, "tasks": 0, "risks": 0, "other": 0}
+    },
+    "office_alerts_no_quote_leak": {
+      "status": "PASS",
+      "alerts_client_cards": 1,
+      "org_seen": "fa82eab8-ce41-4d73-8a3f-05a0f63f1002",
+      "books_badge": true,
+      "mydata_badge_on_card": false,
+      "quote_PR_leak": false,
+      "ola_ta_themata_href": "/office/inbox",
+      "note": "Only 'Βιβλία' findings surface for this client (no myDATA transmission alerts, no quote-PR leak)."
+    },
+    "consistency_alerts_vs_inbox": {
+      "status": "PASS (structural)",
+      "alerts_card_fix_buttons": 0,
+      "inbox_query_by_org_books_rows": 4,
+      "inbox_query_by_org_mydata_rows": 0,
+      "note": "No finding-fix-* buttons rendered anywhere in this session (no untransmitted/classify-worthy documents present). Bulk-focus-hint flow could not be exercised — matches iter45 observation."
+    },
+    "office_open_deep_link": {
+      "status": "FAIL - CRITICAL",
+      "finding_open_href_example": "/office/open?org=fa82eab8-ce41-4d73-8a3f-05a0f63f1002&to=%2Finvoices%2F99ac06f3-07f4-46e4-9d0d-090bc1467a8c",
+      "raw_curl_response": "HTTP/2 307 → location: https://0.0.0.0:3000/login?next=%2Foffice%2Fopen%3Forg%3D...%26to%3D%252Fdashboard",
+      "browser_result": "chrome-error://chromewebdata/ (ERR_SSL_PROTOCOL_ERROR); Next RSC prefetch also fails with 'Failed to fetch RSC payload'.",
+      "reproduced_on": ["finding-open-<orgId>-<code>", "cockpit-open-<orgId>"],
+      "root_cause": "src/app/office/open/route.ts uses `new URL(target, url.origin)` for every NextResponse.redirect. Behind the Cloudflare/emergent proxy, the request URL that Next receives on the server is the internal bind (http://0.0.0.0:3000/…), so `url.origin` becomes 'https://0.0.0.0:3000' and the Location header points at 0.0.0.0 which the browser cannot resolve via HTTPS. Every branch (unauthenticated → /login, no-access → /office/clients, no-membership → /office/clients/<id>, success → safeTo) is affected.",
+      "suggested_fix": "Use forwarded host/proto instead of url.origin, e.g. `const proto = req.headers.get('x-forwarded-proto') ?? url.protocol.replace(':',''); const host = req.headers.get('x-forwarded-host') ?? req.headers.get('host') ?? url.host; const origin = `${proto}://${host}`; return NextResponse.redirect(new URL(safeTo, origin));`. Or use `req.nextUrl` (which honors Next's trusted proxy config) instead of `new URL(req.url)`."
+    },
+    "office_cockpit": {
+      "status": "PARTIAL PASS",
+      "h1": "Cockpit — Κίνδυνοι & μαζικές ενέργειες",
+      "cockpit_critical_testid": true,
+      "cockpit_row_count": 1,
+      "cockpit_open_count": 1,
+      "cockpit_open_href": "/office/open?org=fa82eab8-ce41-4d73-8a3f-05a0f63f1002&to=%2Fdashboard",
+      "cockpit_open_click_result": "chrome-error://chromewebdata/ (same /office/open bug as above)",
+      "cockpit_kpi_testid_count": 0,
+      "kpi_note": "The 4 KPI cards ARE visually rendered (Πελάτες, Συνολικές απαιτήσεις, Απορρίψεις myDATA, Επόμενη προθεσμία) but they carry NO 'cockpit-kpi-*' data-testid attributes — automation cannot select them by the spec'd id. Minor testability gap."
+    },
+    "accountant_cockpit_redirect": {"status": "PASS", "final_url": "/office/cockpit"},
+    "office_tasks": {"status": "PASS", "url": "/office/tasks", "h1": "Εκκρεμότητες γραφείου"},
+    "office_calendar": {"status": "PASS", "office_calendar_testid": true},
+    "branding_rename": {
+      "status": "PASS",
+      "office_pages": {"/office/inbox": {"old": false, "new": true}, "/office/cockpit": {"old": false, "new": true}, "/office/alerts": {"old": false, "new": true}},
+      "business_pages": {"/dashboard": {"old": false, "new": true, "kseki_line": true}, "/setup->redirects_to_/dashboard": {"old": false, "new": true, "kseki_line": true}},
+      "invoice_detail_page": {"old": false, "new": true}
+    },
+    "mobile_overflow_390px": {
+      "status": "PASS",
+      "/office/inbox": {"docW": 390, "winW": 390, "overflow": false},
+      "/office/cockpit": {"docW": 390, "winW": 390, "overflow": false}
+    }
+  },
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "/office/open (GET)",
+        "issue": "NextResponse.redirect uses url.origin which resolves to https://0.0.0.0:3000 behind the reverse proxy, so Location header returns https://0.0.0.0:3000/... and the browser fails with ERR_SSL_PROTOCOL_ERROR. Breaks every finding-open-* and cockpit-open-* deep link — the primary flow of this iteration.",
+        "priority": "CRITICAL"
+      }
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "office/cockpit KPI cards",
+        "issue": "The four KPI cards lack data-testid='cockpit-kpi-*' attributes required by the spec; cards are visible but not testable by id.",
+        "selector": "[data-testid^=\"cockpit-kpi-\"] (returns 0)",
+        "priority": "MEDIUM"
+      }
+    ],
+    "integration_issues": [
+      {
+        "flow": "finding-open-<orgId>-<code> and cockpit-open-<orgId> deep links",
+        "issue": "Both anchors target /office/open which currently returns a 307 to https://0.0.0.0:3000/... — the account-switch + redirect is fully broken end-to-end.",
+        "affected_selectors": ["[data-testid^=\"finding-open-\"]", "[data-testid^=\"cockpit-open-\"]"]
+      }
+    ],
+    "design_issues": []
+  },
+  "not_verified": [
+    "finding-fix-<orgId>-<code> + /office/bulk?...&action=transmit|classify + bulk-focus-hint + bulk-client-<orgId> — no finding-fix-* buttons were rendered in this session (seed data has no myDATA/untransmitted-non-quote alerts). Would need seeded data to exercise.",
+    "Consistency numeric assertion (alerts card count == inbox books+mydata count per org) — alerts card does not expose a numeric badge to compare; only the presence of the 'Βιβλία' badge is verifiable. Structurally consistent (both show only books/mydata sources, no PR-* quote leak)."
+  ],
+  "critical_code_review_comments": [
+    "CRITICAL: /app/frontend/src/app/office/open/route.ts uses `new URL(safeTo, url.origin)` in every redirect branch — behind the emergent/Cloudflare proxy this resolves to https://0.0.0.0:3000 and breaks the whole deep-link feature. Switch to x-forwarded-host/x-forwarded-proto or use req.nextUrl.origin.",
+    "MEDIUM: /app/frontend/src/app/office/cockpit/page.tsx renders 4 KPI cards but does NOT attach data-testid='cockpit-kpi-*' as required by the spec. Add explicit testids per KPI (e.g. cockpit-kpi-clients, cockpit-kpi-receivables, cockpit-kpi-mydata-rejects, cockpit-kpi-next-deadline).",
+    "NOTE: findings-list filter testids follow the raw source code from collectFindings (`task`, `doc`, `books`), not the plural/spec words in the prompt (`tasks`, `risks`, `mydata`). If the spec is authoritative, rename source keys or provide alias testids for tasks/risks/mydata so downstream tests can rely on them. Otherwise, update the spec to match reality.",
+    "POSITIVE: Unified findings source works — /office/inbox, /office/alerts and /office/cockpit all draw from the same collectFindings output; alerts correctly filters to only books+mydata sources; no ΠΡ-* quote leak; /accountant/cockpit redirects to /office/cockpit.",
+    "POSITIVE: Rename 'Τιμολόγιο Cloud' → 'Σύνολο ERP' is complete on every page visited (office inbox/cockpit/alerts, business dashboard, invoice detail); the 'Ξεκινήστε με το Σύνολο ERP' checklist copy is in place.",
+    "POSITIVE: Mobile 390px viewport has no horizontal overflow on /office/inbox and /office/cockpit."
+  ],
+  "updated_files": [],
+  "test_report_links": [],
+  "action_items": [
+    "FIX CRITICAL: /app/frontend/src/app/office/open/route.ts — replace `url.origin` with forwarded-host aware origin (or req.nextUrl.origin) so redirects use the public https URL instead of https://0.0.0.0:3000.",
+    "ADD: data-testid='cockpit-kpi-*' to the 4 KPI cards in /office/cockpit.",
+    "OPTIONAL: If spec authoritative, align source keys 'task'→'tasks', 'doc'→? and add 'mydata'/'risks' filters/aliases so `inbox-filter-mydata` etc. exist as documented.",
+    "AFTER FIX: seed one untransmitted (non-quote) invoice >24h old so finding-fix-* and bulk-focus-hint flow can be tested."
+  ],
+  "success_rate": {"frontend": "~78% (7/9 primary checks PASS; deep-link route broken; cockpit KPI testids missing)"},
+  "seed_data_creation": "none",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "After main agent fixes /office/open origin bug, retest by clicking any finding-open-* on /office/inbox and any cockpit-open-* on /office/cockpit; both should end on the business page for the target org (e.g. /invoices/<id> or /dashboard) without SSL error. Also verify data-testid='cockpit-kpi-*' exists (expected 4). To exercise finding-fix flow you may need to seed an untransmitted non-quote invoice for org fa82eab8-ce41-4d73-8a3f-05a0f63f1002.",
+  "rca_of_the_issue": "In /app/frontend/src/app/office/open/route.ts line 10 `const url = new URL(req.url);` — behind the reverse proxy Next.js receives the internal request URL (http://0.0.0.0:3000/...), so `url.origin === 'http://0.0.0.0:3000'` (or https at CF layer). All 4 redirect returns build the Location as `new URL(target, url.origin)`, so the Location header becomes `https://0.0.0.0:3000/<target>`. The browser attempts an HTTPS TLS handshake against 0.0.0.0:3000 and fails with ERR_SSL_PROTOCOL_ERROR. Fix by deriving the origin from `x-forwarded-proto` + `x-forwarded-host` (or `host`) headers, or use `req.nextUrl` which respects proxy trust settings."
+}

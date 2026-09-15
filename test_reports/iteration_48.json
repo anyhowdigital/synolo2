@@ -1,0 +1,70 @@
+{
+  "summary": "Diagnostic audit of Σύνολο ERP business back-office (32 pages @1920x800 + @390x844). All pages return HTTP 200, no hydration/console errors observed after warm-up (initial /reports/withholding shows 4 dev-mode warnings that clear on 2nd visit). Money format (1.234,56 €) and date format (dd/MM/yyyy) are correct. Core flows work: login, invoice list, invoice detail (PDF/email dialog opens, myDATA QR shown), /invoices/new form loads with 17 inputs, /customers/new validates required fields (native 'Συμπληρώστε αυτό το πεδίο'), /pos loads 13 product tiles, /accounting 5 tabs render, /settings 16 tabs render + Save button present, /risks 'Λύσε το με AI' dialog opens, /billing plans render (Starter/…), /notifications list renders, /account passkeys section present, /invoice email dialog opens, /reports date pickers present. Issues found: mainly terminology/sidebar–h1 mismatches, one duplicated CTA (/projects), several unreachable sub-routes that respond 404 (/banking/reconcile, /banking/extrait, /banking/import), /reports/withholding is orphan (no nav entry from sidebar or dashboard), /reports/cashflow only reachable from dashboard (not sidebar), and /delivery-notes silently redirects to /invoices (no dedicated page).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "/projects", "issue": "Two 'Νέο έργο' buttons with identical href '/projects/new' rendered in main content (duplicated primary CTA)", "selector": "main a[href='/projects/new']", "priority": "LOW"},
+      {"component": "/banking sub-routes", "issue": "Sub-routes /banking/reconcile, /banking/extrait, /banking/import all return 404 'Η σελίδα δεν βρέθηκε'. The audit brief expected banking tabs (extrait/reconcile) and an import dialog. Import CSV dialog exists at /banking (data-testid=import-open-payments) but reconcile/extrait are only accessible per-account via /banking/{accountId}?tab=statement. Global banking tabs are missing.", "selector": "n/a", "priority": "MEDIUM"},
+      {"component": "/delivery-notes", "issue": "Route silently 3xx-redirects to /invoices. There is no dedicated delivery-notes page — clicking anywhere expecting a distinct list shows the invoices grid (h1='Παραστατικά') with the 'Δελτία αποστολής' filter active. Sidebar has no entry, discoverable only via filter chip on /invoices.", "selector": "a[href='/delivery-notes']", "priority": "LOW"},
+      {"component": "/reports/withholding", "issue": "Orphan page — not linked from the sidebar and not linked from /dashboard. h1='Βεβαιώσεις παρακρατούμενων φόρων'. First visit produces 4 console warnings (Next dev-mode) but clears on next.", "selector": "n/a", "priority": "LOW"},
+      {"component": "/reports/cashflow", "issue": "Only reachable from /dashboard; no sidebar entry despite being a major report (h1='Ταμειακή ρευστότητα · 90 ημέρες').", "selector": "n/a", "priority": "LOW"}
+    ],
+    "integration_issues": [
+      {"flow": "Mobile page load throttling", "issue": "First cold visits at 390x844 to /customers, /projects, /expenses returned HTTP 429 (rate-limited) and rendered a short (~290 char) body with horizontal overflow (scrollW=590 > innerW=390). Retrying after a short delay all serve 200 with no overflow. Indicates rate-limit is too aggressive during navigation or 429 page itself is not mobile-responsive.", "affected_selectors": ["body"]}
+    ],
+    "design_issues": [
+      {"screen": "Mobile 429 error page", "issues": ["Static error/short-body page overflows viewport at 390px width (scrollWidth=590)."]}
+    ]
+  },
+  "wording_and_ux_inconsistencies": [
+    {"where": "Sidebar vs h1", "issue": "Sidebar 'Συνδρομές & επαναλαμβανόμενα' → h1 'Επαναλαμβανόμενα παραστατικά' on /recurring. 'Συνδρομές' term dropped.", "severity": "medium"},
+    {"where": "Sidebar vs h1", "issue": "Sidebar 'Έργα & χρόνος' → h1 'Έργα & χρονοχρέωση' on /projects.", "severity": "low"},
+    {"where": "Sidebar vs h1", "issue": "Sidebar 'POS · Ταμείο λιανικής' → h1 'Ταμείο λιανικής (POS)' (order swapped).", "severity": "low"},
+    {"where": "/invoices vs /delivery-notes", "issue": "Same content and same h1 'Παραστατικά' for both routes; user has no signal that they are on the 'delivery notes' area — only the 'Δελτία αποστολής' filter chip is highlighted. Consider dedicated h1/subtitle when navigating via that route.", "severity": "medium"},
+    {"where": "Terminology 'Παραστατικά' vs 'Τιμολόγια'", "issue": "Sidebar/H1 use 'Παραστατικά' (all documents) consistently; subtitle and filter chips use 'τιμολόγια, αποδείξεις, πιστωτικά και δελτία αποστολής' — consistent. No inconsistency found.", "severity": "info"},
+    {"where": "Terminology 'Έξοδα' vs 'Αγορές'", "issue": "Unified as 'Έξοδα & Αγορές' in both sidebar and h1. Consistent.", "severity": "info"},
+    {"where": "myDATA button state", "issue": "On /mydata, 'Διαβίβαση εκκρεμών' is disabled while 'Συμφωνία διαβιβασμένων' is enabled. Reason for disabled state is not surfaced (no tooltip/copy). Consider adding a hint 'Δεν υπάρχουν εκκρεμή προς διαβίβαση'.", "severity": "medium"}
+  ],
+  "verified_working": [
+    "Login (demo@timologio.gr) → /dashboard",
+    "/invoices list with correct GR money format (1.234,56 €) and dd/MM/yyyy dates",
+    "/invoices/6e22ac6f… detail: PDF button, 'Αποστολή email' opens dialog, myDATA QR URL rendered",
+    "/invoices/new: 17 inputs, none disabled",
+    "/pos: 13 product tiles",
+    "/customers/new: submit empty → native validation 'Συμπληρώστε αυτό το πεδίο' fires, aade-lookup-btn present",
+    "/crm: 2 draggable cards detected (kanban interactive)",
+    "/accounting: 5 tabs (Ισοζύγιο, Ημερολόγιο, Αποτελέσματα, Ισολογισμός, Λογιστικό σχέδιο) all render",
+    "/settings: 16 tabs render (Επιχείρηση, Τιμολόγηση, Εμφάνιση PDF, Σειρές, Πεδία, myDATA, ΑΑΔΕ, Δημόσιο, ΕΛΠ, Γέφυρα, Χρήστες, Λογιστής, API, Εξαγωγή, Email, Ιστορικό) + Αποθήκευση present",
+    "/risks 'Λύσε το με AI' opens role=dialog immediately",
+    "/billing renders trial state + Starter/Growth/… plan cards",
+    "/notifications renders list (real items shown)",
+    "/account renders profile + notifications matrix + passkeys section",
+    "/reports has 3 date inputs including 2 native type=date",
+    "/expenses/ocr renders (h1 'Μαζικό OCR αποδείξεων')",
+    "/banking main page renders with import CSV (data-testid=import-open-payments), Μεταφορά, Λοιπή κίνηση, Νέος λογαριασμός buttons"
+  ],
+  "test_report_links": ["/tmp/audit.json"],
+  "action_items": [
+    "Align sidebar labels with page h1: rename sidebar 'Συνδρομές & επαναλαμβανόμενα' or extend h1 on /recurring to include 'Συνδρομές'.",
+    "Align 'Έργα & χρόνος' (sidebar) vs 'Έργα & χρονοχρέωση' (h1). Pick one wording.",
+    "Standardise 'POS · Ταμείο λιανικής' vs 'Ταμείο λιανικής (POS)' — same order in both places.",
+    "Fix 404s at /banking/reconcile, /banking/extrait, /banking/import OR remove any (stale) references to them; expose global reconcile/extrait tabs on /banking as the audit brief expects, since currently only per-account tabs exist.",
+    "Deduplicate the two 'Νέο έργο' buttons on /projects — keep a single primary CTA.",
+    "/delivery-notes: either render a distinct page (dedicated h1/subtitle 'Δελτία αποστολής') or add sidebar entry for discoverability, since currently it redirects to /invoices with identical h1.",
+    "Add sidebar entries (or expose from parent /reports) for /reports/cashflow and /reports/withholding — both are otherwise unreachable from the sidebar.",
+    "Explain disabled state of 'Διαβίβαση εκκρεμών' on /mydata with a tooltip/inline copy ('Δεν υπάρχουν εκκρεμή').",
+    "Make the 429 rate-limit response page mobile-responsive (avoid horizontal overflow at 390px) or increase the mobile-first-load rate window; users hitting /customers, /projects, /expenses on cold cache at 390x844 see a broken minimal page."
+  ],
+  "critical_code_review_comments": [
+    "app-sidebar.tsx labels drift from page h1s (recurring/projects/pos). Consider a single labels.ts source of truth used by both sidebar and page headers.",
+    "Missing sidebar entries for /reports/cashflow, /reports/withholding, /delivery-notes create orphan routes despite being real, functional pages.",
+    "/banking/{reconcile,extrait,import} responding 404 suggests removed sub-routes; ensure no stale links point at them (grep the codebase)."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a", "frontend": "~95% (all pages 200/renderable; issues are cosmetic/wording/nav-discovery, one duplicated CTA, three 404 sub-routes)"},
+  "test_credentials": "demo@timologio.gr / demo1234 (owner)",
+  "seed_data_creation": "none — diagnostic only, no writes performed",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Diagnostic-only audit. All 32 pages listed by E1 open successfully. Watch for the following after fixes: (a) /banking sub-tabs (reconcile/extrait/import) if implemented globally; (b) sidebar↔h1 label unification; (c) mobile cold-load rate-limit at 390x844 producing horizontally-overflowing 429 body on /customers,/projects,/expenses; (d) orphan reports pages (/reports/cashflow, /reports/withholding) and /delivery-notes redirect. Do not use forgot-password/reset — this is a demo tenant with mocked myDATA."
+}

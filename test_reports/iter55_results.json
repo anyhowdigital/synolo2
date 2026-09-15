@@ -1,0 +1,154 @@
+{
+  "assertions": [
+    {
+      "name": "banking q=QA55 == 26",
+      "ok": true,
+      "detail": "1–26 από 26 λογαριασμοί"
+    },
+    {
+      "name": "banking q=QA55&status=inactive == 6",
+      "ok": true,
+      "detail": "1–6 από 6 λογαριασμοί"
+    },
+    {
+      "name": "banking q=QA55&status=active == 20",
+      "ok": true,
+      "detail": "1–20 από 20 λογαριασμοί"
+    },
+    {
+      "name": "banking q=QA55&kind=cash == 7",
+      "ok": true,
+      "detail": "1–7 από 7 λογαριασμοί"
+    },
+    {
+      "name": "banking q=QA55&kind=card == 6",
+      "ok": true,
+      "detail": "1–6 από 6 λογαριασμοί"
+    },
+    {
+      "name": "banking q=QA55 pageSize=25 page=2 == 26–26",
+      "ok": true,
+      "detail": "26–26 από 26 λογαριασμοί"
+    },
+    {
+      "name": "banking IBAN unspaced (i=6) q returns 1",
+      "ok": false,
+      "detail": "0 λογαριασμοί"
+    },
+    {
+      "name": "banking IBAN spaced same → same 1",
+      "ok": false,
+      "detail": "0 λογαριασμοί"
+    },
+    {
+      "name": "banking summary totals invariant across q/status filter",
+      "ok": true,
+      "detail": "all=Συνολικά διαθέσιμα36.930,59 €21 ενεργοί λογαριασμοί filt=Συνολικά διαθέσιμα36.930,59 €21 ενεργοί λογαριασμοί"
+    },
+    {
+      "name": "banking clear drops status",
+      "ok": true,
+      "detail": "/banking?pageSize=25"
+    },
+    {
+      "name": "banking mobile no page overflow",
+      "ok": true,
+      "detail": "ov=False"
+    },
+    {
+      "name": "employees q=QA55 == 26",
+      "ok": true,
+      "detail": "1–26 από 26 εργαζόμενοι"
+    },
+    {
+      "name": "employees q=QA55&status=inactive == 7",
+      "ok": true,
+      "detail": "1–7 από 7 εργαζόμενοι"
+    },
+    {
+      "name": "employees q=QA55&status=active == 19",
+      "ok": true,
+      "detail": "1–19 από 19 εργαζόμενοι"
+    },
+    {
+      "name": "employees AFM search ≥1",
+      "ok": true,
+      "detail": "1–1 από 1 εργαζόμενοι"
+    },
+    {
+      "name": "employees q=QA55 pageSize=25 page=2 == 26",
+      "ok": true,
+      "detail": "26–26 από 26 εργαζόμενοι"
+    },
+    {
+      "name": "employees no creation CTA",
+      "ok": true,
+      "detail": "cta_count=0"
+    },
+    {
+      "name": "employees el-GR hire date rendered (contains '2020')",
+      "ok": true,
+      "detail": "Δημητρίου_02 QA55_ΝίκοςΑΦΜ 99900002 · ΑΜΚΑ 01010110002ΟδηγόςΠλήρης1.220,00 €01/01/2020Ενεργός"
+    },
+    {
+      "name": "employees money contains € symbol",
+      "ok": true,
+      "detail": "Δημητρίου_02 QA55_ΝίκοςΑΦΜ 99900002 · ΑΜΚΑ 01010110002ΟδηγόςΠλήρης1.220,00 €01/01/2020Ενεργός"
+    },
+    {
+      "name": "employees mobile no page overflow (inner scroll OK)",
+      "ok": true,
+      "detail": "ov=False"
+    },
+    {
+      "name": "customers q=QA55 pageSize=50 shows 1–50/55",
+      "ok": true,
+      "detail": "1–50 από 55 πελάτες"
+    },
+    {
+      "name": "customers Next preserves pageSize=50",
+      "ok": true,
+      "detail": "/customers?q=QA55&pageSize=50&page=2"
+    },
+    {
+      "name": "customers Next preserves q=QA55",
+      "ok": true,
+      "detail": "/customers?q=QA55&pageSize=50&page=2"
+    },
+    {
+      "name": "customers Next → 51–55/55",
+      "ok": true,
+      "detail": "51–55 από 55 πελάτες"
+    },
+    {
+      "name": "customers Prev on last page preserves pageSize=50",
+      "ok": true,
+      "detail": "/customers?q=QA55&pageSize=50&page=1"
+    },
+    {
+      "name": "customers last page Next=disabled <button>",
+      "ok": true,
+      "detail": "nd=True"
+    },
+    {
+      "name": "customers pageSize=200 == 1–55/55",
+      "ok": true,
+      "detail": "1–55 από 55 πελάτες"
+    },
+    {
+      "name": "customers first page Prev=disabled <button>",
+      "ok": true,
+      "detail": "pd=True"
+    },
+    {
+      "name": "invoices page=99 clamped (not empty state)",
+      "ok": false,
+      "detail": "range= empty=False"
+    },
+    {
+      "name": "quotes page=999 clamped (not empty state)",
+      "ok": true,
+      "detail": "range=1–1 από 1 προσφορές empty=False"
+    }
+  ]
+}

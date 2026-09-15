@@ -1,0 +1,41 @@
+{
+  "iteration": 36,
+  "type": "targeted main-agent regression after iteration35",
+  "status": "pass_with_documented_untested_flows",
+  "scope": "Synolo ERP landing/auth UI and latest mobile typography request; paused accounting/financial audit NOT resumed",
+  "verified": [
+    "Actual demo login through login form redirects to /dashboard with no injected sessions",
+    "Wrong password shows real server error; email/password retained; correct password succeeds afterwards",
+    "Business registration duplicate existing email returns server validation error and retains email; no account created",
+    "Accountant registration duplicate existing office email returns server validation error; no account created",
+    "Login and business signup show/hide password toggle changes input type and preserves value",
+    "Landing business/office toggle changes preview content",
+    "Feature filter money shows6 features; all shows18",
+    "Pricing starter monthly9EUR and yearly90EUR switches correctly",
+    "FAQ opens with native details and mobile navigation closes after section selection",
+    "Desktop1920x800 and mobile390x844 snapshots and document overflow checks empty",
+    "Mobile hero paragraph16px, feature paragraphs15px, auth description/labels/buttons15px, inputs16px",
+    "Desktop auth illustration text area corrected to480px instead of overly narrow padding",
+    "Owner kkoletsas@gmail.com remains owner; users count9 unchanged",
+    "TypeScript noEmit and targeted ESLint passed; manifest and design-guidelines JSON valid"
+  ],
+  "root_causes_fixed": [
+    "Next dev/server-action allowlists had old hardcoded origins; now read APP_URL, REACT_APP_BACKEND_URL and optional NEXT_ADDITIONAL_ORIGINS from env",
+    "Serviceworker cached mutable dev JS/CSS stale-while-revalidate: changed frameworkJS/CSS to network-only, cache version synolo-v2, worker script updateViaCache none; no offline expense queue changes",
+    "Mobile typography base CSS and button/label specificity suppressed intended15px; corrected scoped mobile selectors"
+  ],
+  "not_tested": [
+    "Successful creation of a NEW account plus outbound email delivery; avoided external email effects",
+    "Actual passkey/biometric and2FA challenge authentication; existing flow preserved, button presence only",
+    "New live e-invoicing provider or universal accounting integrations; this task only presents future direction"
+  ],
+  "mocked": ["Hero product illustration is explicitly illustrative, not live business data; no auth API mocks used"],
+  "sources": [
+    "/root/.emergent/automation_output/20260914_174936/console_20260914_174936.log",
+    "/root/.emergent/automation_output/20260914_175148/console_20260914_175148.log",
+    "/root/.emergent/automation_output/20260914_175317/console_20260914_175317.log"
+  ],
+  "notes": "Two intermediate screenshot scripts used nonexistent test IDs hero-persona-office and faq-trigger-0. Those were automation selector errors, not app bugs. Retested correct door-accountant-button and faq-question-0 successfully. Earlier iteration35 screenshots referenced missing files and fonts contradicted main computed styles; use this precise verified scope instead. No old report claims of absolute state compliance adopted.",
+  "credentials_changed": false,
+  "production_submissions": false
+}

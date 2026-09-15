@@ -1,0 +1,34 @@
+{
+  "summary": "Frontend + backend E2E of B2G Βήμα Α: auto-send after issue, hourly cron polling, list filter chips + badge, notifications. All 7 required flows PASS. (1) Settings→Δημόσιο(B2G): b2g-autosend-switch toggled ON, saved, and persists after reload (b2g-enabled-switch stayed ON). (2) Happy auto-send: customer 4ffd4deb-…-a833c8 project ref refilled to '1|ΑΔΑ-TEST'; new invoice TP-0006 (ced7b3c9-…) issued without extra clicks; B2G card immediately shows 'Σε αναμονή παρόχου' with providerId SIM-1789197883087 (simulation:pending), no manual send-btn click needed. (3) Missing-field path: customer project ref cleared, new invoice TP-0007 (e3f87521-…) issued successfully (number assigned), B2G stays 'Δεν έχει σταλεί', bell notification appears titled 'Το ΤΠ-0007 δεν στάλθηκε στο Δημόσιο' body 'Λείπουν υποχρεωτικά στοιχεία B2G: Λείπει η αναφορά έργου/προϋπολογισμού (BT-11).'. (4) Cron endpoint POST /api/cron/b2g-status: 401 without header (correct), 200 {ok:true,ranAt,orgs:[…]} with 'Authorization: Bearer dev-cron-secret-change-me'; two calls advanced TP-0006 pending→sent (run1 checked=1) → accepted (run2 accepted=1); invoice detail after cron shows 'Αποδεκτό από φορέα' + rawStatus simulation:accepted. (5) Invoices list: filter-b2g-pending and filter-b2g-rejected chips both render (org has b2gEnabled=true), URL becomes /invoices?b2g=pending; four b2g-badge-<invoiceId> testids present in the list (ced7b3c9…, cee26e8c…, 04b146f3…, bb64fa4d…). (6) Bell menu shows the B2G notification; /account notifications preferences page shows new type 'Απόρριψη/σφάλμα τιμολόγησης Δημοσίου' with description 'Ο φορέας ή ο πάροχος PEPPOL απέρριψε παραστατικό, ή λείπουν υποχρεωτικά στοιχεία B2G.' with in-app+email toggles. (7) Regression: /invoices /customers /account /dashboard /invoices/new /settings load fine, no Next.js overlay, no console pageerrors on any tested page.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "verified_working": [
+    "Settings b2g-autosend-switch saves + persists after reload (with b2g-enabled ON)",
+    "Auto-send happy: TP-0006 issued → b2g-card immediately 'Σε αναμονή παρόχου' + SIM-1789197883087, zero extra clicks",
+    "Auto-send missing field: TP-0007 issued anyway; b2g stays 'Δεν έχει σταλεί'; notification 'Το ΤΠ-0007 δεν στάλθηκε στο Δημόσιο · Λείπουν υποχρεωτικά στοιχεία B2G: Λείπει η αναφορά έργου/προϋπολογισμού (BT-11).' appears in bell",
+    "Cron POST /api/cron/b2g-status → 401 without Bearer, 200 with; two runs advance pending→sent→accepted (checked=1, then accepted=1)",
+    "Invoice detail after cron: 'Αποδεκτό από φορέα', rawStatus simulation:accepted",
+    "/invoices renders data-testid=filter-b2g-pending + filter-b2g-rejected; ?b2g=pending applied on URL",
+    "b2g-badge-<invoiceId> testids present for 4 sent invoices in table",
+    "/account notifications page renders new preference 'Απόρριψη/σφάλμα τιμολόγησης Δημοσίου' (in-app + email switches)",
+    "Regression pages (/invoices, /customers, /account, /dashboard, /invoices/new) load without errors"
+  ],
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "src/lib/services/invoices.ts:376 autoSendB2G is wrapped in try/catch and notifies on any error — good: issuing never fails because of B2G side effects.",
+    "src/lib/services/invoices.ts:371 gate `docType.kind === 'invoice'` correctly excludes quotes and delivery notes from auto-send — good.",
+    "src/app/api/cron/b2g-status/route.ts:13 uses WEBHOOK_CRON_SECRET ?? CRON_SECRET; if none is set it falls back to `return true` (open). In production this is defended by .env, but consider forcing 401 when secret is unset to fail-safe.",
+    "src/app/api/cron/b2g-status/route.ts also exposes GET → POST(req). This is convenient for browser pings but any GET that reaches this route re-runs the job; ok since it is idempotent and rate-limited by cron platform, but worth flagging.",
+    "Cron `.limit(50)` per org caps work per run — good for latency; if more than 50 pending exist they roll over to next hour. Acceptable but document.",
+    "listInvoices b2g filter uses status ∈ ('pending','sent') for pending and ('rejected','error') for rejected — matches chip labels. Good."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (cron endpoint auth + transitions)", "frontend": "100% (7/7 required flows)"},
+  "test_credentials": "demo@timologio.gr / demo1234 (owner); CRON secret dev-cron-secret-change-me (from frontend/.env CRON_SECRET)",
+  "seed_data_creation": "Created invoice TP-0006 (id ced7b3c9-b4f6-41d1-99f6-5b7f786a22f4, 124€, b2gStatus=accepted after cron, providerId SIM-1789197883087) and TP-0007 (id e3f87521-69aa-419c-95db-9fa1b6e5fb79, 62€, b2gStatus=not_sent, triggered a b2g_rejected notification). Customer 4ffd4deb-a38f-4ca4-9c80-9d98abe833c8 project ref was left CLEARED after the missing-field test.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "B2G Βήμα Α feature is fully working: auto-send after issue, hourly cron endpoint (Bearer auth + transitions), invoices list b2g chips + b2g-badge, and account notification preference for b2g_rejected. Demo org has b2gEnabled=b2gAutoSend=true. Test customer id=4ffd4deb-a38f-4ca4-9c80-9d98abe833c8 currently has an EMPTY b2gProjectReference (last state after the missing-field test) — refill '1|ΑΔΑ-TEST' before re-running the happy path. TP-0006 is already b2gStatus=accepted, TP-0007 stayed not_sent. Iteration 8's TP-0003 is still accepted from prior run.",
+  "rca of the issue": "N/A — no bugs."
+}

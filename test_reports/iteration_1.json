@@ -1,0 +1,39 @@
+{
+  "summary": "Frontend E2E testing of Projects & Time Tracking feature. Encountered 2 blocking bugs which I fixed to unblock testing: (1) Next.js Server Actions rejected all form posts because x-forwarded-host != origin (ingress uses two different preview hostnames). Fixed by adding experimental.serverActions.allowedOrigins to next.config.ts. (2) /projects/new was reusing the [id]/edit page handler and tried to read params.id (undefined for static route), throwing a drizzle query error. Fixed by making params optional and treating undefined id as isNew. After fixes, 10 of 12 requested scenarios pass. Remaining issue: 'Τιμολόγηση μη χρεωμένων' action does not actually create an invoice or update statuses (dialog confirms but nothing changes).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "ProjectDetail invoice-unbilled-btn", "issue": "Clicking 'Τιμολόγηση μη χρεωμένων' and confirming the browser confirm dialog does NOT create an invoice, does NOT redirect to /invoices/<id>, and time-entry/expense statuses stay 'Καταχωρημένο' instead of becoming 'Τιμολογημένο'. Μη χρεωμένα stat remains €90.00. Dialog message 'Δημιουργία τιμολογίου με σύνολο περίπου 90,00 €' is shown so the client handler runs; the server action `invoiceUnbilled` in src/app/actions/projects.ts appears to fail silently or its redirect is lost.", "selector": "[data-testid=\"invoice-unbilled-btn\"]", "priority": "HIGH"}
+    ],
+    "integration_issues": [
+      {"flow": "Timer stop-after-start on same session", "issue": "The initial start-timer click did start a timer server-side (verified on next page load: elapsed 00:00:58 counter + 'Τρέχει' row appears with Στοπ button). However in the same JS session the UI did not swap start-timer-btn → stop-timer-btn quickly enough for the test to click stop. May be a router.refresh() / revalidation delay after the server action returns. Manual retest after page reload confirms the running-timer UI works.", "affected_selectors": ["[data-testid=\"start-timer-btn\"]", "[data-testid=\"stop-timer-btn\"]", "[data-testid=\"timer-elapsed\"]"]}
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [
+    "Fix invoiceUnbilled server action: verify it actually inserts an invoice row, links project time entries + expenses to it, updates their status to invoiced, and redirects to /invoices/<newId>. Check server logs when clicking; the client dialog confirms but no navigation happens.",
+    "Investigate router.refresh() / revalidatePath after startTimer so the UI immediately reflects the running state (currently only reflected after a full navigation).",
+    "Keep the next.config.ts experimental.serverActions.allowedOrigins entry — without it, every server action (login, create project, log time, add expense, start/stop timer, invoice) returns 500 'Invalid Server Actions request' because the ingress sets x-forwarded-host=cashflow-pro-295.preview.emergentagent.com while the browser Origin is the cluster hostname.",
+    "Keep the /projects/new page fix — the previous version crashed with a drizzle 'params: ,<orgId>,1' error whenever the route was hit."
+  ],
+  "critical_code_review_comments": [
+    "src/app/(app)/projects/new/page.tsx was written expecting a dynamic [id] param but placed at a static /projects/new route. The [id]/edit page then re-exports it. If the shared-handler pattern is kept, add explicit optional typing for params and default id to 'new' (as I did) — otherwise Next.js will always pass empty params and drizzle will throw.",
+    "Next.js production/preview deployments behind a reverse proxy that rewrites Host must have experimental.serverActions.allowedOrigins configured with every hostname the browser might use, or all server-action POSTs will 500.",
+    "invoiceUnbilled server action needs proper error surfacing — currently the failure is completely silent to the user (no toast, no error banner, dialog just closes)."
+  ],
+  "updated_files": [
+    "/app/frontend/next.config.ts",
+    "/app/frontend/src/app/(app)/projects/new/page.tsx"
+  ],
+  "success_rate": {"backend": "N/A (out of scope)", "frontend": "83% (10/12 scenarios pass)"},
+  "test_credentials": "demo@timologio.gr / demo1234 (owner)",
+  "seed_data_creation": "One project 'Test Project Alpha' (id 015ec060-51bd-404b-a544-5c95f12d45ca) with 1 task 'Analysis', 1 time entry (1.5h, €75), 1 project expense 'Metro tickets' (€15) was created in the demo org SQLite DB.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Login uses Next.js Server Actions — must have serverActions.allowedOrigins set in next.config.ts. Handle browser confirm() dialogs BEFORE clicking the trigger via page.on('dialog', ...). Existing test project id in DB: 015ec060-51bd-404b-a544-5c95f12d45ca. Scenarios still to re-verify after main agent fixes invoiceUnbilled: (a) redirect to /invoices/<id>, (b) invoice has 2 lines (time + expense), (c) time/expense statuses flip to 'Τιμολογημένο'.",
+  "rca of the issue": "Bug 1 (login 500) — Next.js 15/16 protects server actions by comparing Origin vs x-forwarded-host; the emergent ingress rewrites x-forwarded-host to *.preview.emergentagent.com while the browser origin is *.cluster-7.preview.emergentcf.cloud, so every action was rejected with 'Invalid Server Actions request'. Fix: whitelist both hostnames in experimental.serverActions.allowedOrigins. Bug 2 (/projects/new crash) — /projects/new is a static route with no dynamic segment, but its page.tsx destructures params.id and passes it to a drizzle eq(projects.id, id) query. id is undefined → drizzle throws → error boundary shows 'Κάτι πήγε στραβά'. Fix: make params optional and treat missing id as isNew. Bug 3 (invoiceUnbilled silent) — need to inspect server logs and the action implementation; likely either the action throws (invalid data) or its redirect() is being caught by an outer try/catch (Next.js 15 uses a throw to redirect)."
+}

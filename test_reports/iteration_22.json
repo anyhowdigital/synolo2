@@ -1,0 +1,54 @@
+{
+  "summary": "Frontend-only validation of the accountant/office panel and business↔accountant linking flow. All primary flows work end-to-end: (1) /register account-type chooser renders both cards; business → /register?type=business form; accountant → /accountant-signup form. (2) Business owner /settings?tab=accountant renders the Λογιστής tab with accountant-code-generate (produced code 948730), accountant-code-value shown, accountant-invite-email/level/btn, active-link accountant-level-<id> select + accountant-unlink-<id>; changing the access level to μόνο ανάγνωση persisted (server action returned success, badge updated). (3) Accountant office@koletsas.gr logs in and is redirected to /office; /office/clients renders tab-code/tab-afm/tab-how plus link-code-input/link-code-submit and the pending AFM request row (ANYHOW ΙΚΕ) with cancel button. (4) /office/clients/<orgId> Client 360 renders client360-kpis for a linked org and returns HTTP 404 for a non-linked UUID. (5) /office/vat renders vat-month-input, vat-bulk-transmit, vat-table, vat-row-<orgId>, vat-select-<orgId>; the bulk-books export button is present under data-testid=\"vat-bulk-export\" (NAMING DEVIATION vs the review request which asked for vat-bulk-books). (6) /office/team: staff-email-input, staff-role-select, staff-invite-btn all present. (7) /office/fees: after login and hydration a fee-row-<orgId> is rendered with fee-amount-<orgId>, fee-cadence-<orgId>, fee-note-<orgId>, fee-save-<orgId> plus a global fees-generate-btn (NAMING DEVIATION vs the review request which listed fee-amount/fee-cadence/fee-save without an org-id suffix). (8) /office/inbox exposes inbox-list. (9) /office/assistant: assistant-run triggers POST /api/copilot/office-brief; a full Greek response arrived in ~25s with a Σύνοψη block, 6 Ενέργειες σήμερα with severity badges (high/medium/low) and per-client sections — LLM key is healthy. (10) Regression: /dashboard, /settings?tab=users (no 'accountant' role in role dropdown), /office/cockpit, /office/tasks, /office/calendar, /office/documents all return 200 and render. No 500 responses, no red console errors (only one benign 404 for the intentionally invalid org UUID and a React 'script tag while rendering' warning surfaced by the Emergent overlay, not app code).",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "Business→accountant email invite acceptance visualisation",
+        "issue": "office@koletsas.gr is already actively linked to demo@timologio.gr (via prior AFM request), so a fresh business→accountant invite cannot be delivered to that account to test [data-testid^=org-invite-accept-]. The receiving-side UI IS wired (accountant /office/clients maps firmLinkInvites and renders org-invite-accept-<id> when status='pending'), but this iteration observed 0 such rows because none exist. Recommend either seeding a second accountant org OR unlinking Δήμος↔Κολέτσας in seed data so QA can exercise the accept/decline path.",
+        "affected_selectors": ["[data-testid^=\"org-invite-accept-\"]", "[data-testid^=\"org-invite-decline-\"]"]
+      },
+      {
+        "flow": "Testid naming vs review-request spec",
+        "issue": "Two documented selectors do not match the actual DOM: (a) VAT bulk-books CSV export is exposed as data-testid=\"vat-bulk-export\" (not vat-bulk-books); (b) Fees per-client Save/Amount/Cadence are exposed per-orgId (fee-amount-<orgId>, fee-cadence-<orgId>, fee-save-<orgId>, fee-note-<orgId>) rather than the bare fee-amount/fee-cadence/fee-save listed in the review request. Functionality works — this is a docs/selector alignment gap only.",
+        "affected_selectors": ["[data-testid=\"vat-bulk-books\"]", "[data-testid=\"fee-amount\"]", "[data-testid=\"fee-cadence\"]", "[data-testid=\"fee-save\"]"]
+      }
+    ],
+    "design_issues": []
+  },
+  "verified_features": [
+    "/register: register-type-chooser + register-type-business (→ business form) + register-type-accountant (→ /accountant-signup) all wired.",
+    "Business /settings?tab=accountant: accountant-code-generate produced code '948730'; accountant-code-value displays it; invite form + active-link row expose accountant-invite-email/level/btn and accountant-level-<id> + accountant-unlink-<id>; changing access level to μόνο ανάγνωση persists.",
+    "Accountant office@koletsas.gr redirects to /office post-login; office-nav shows Επισκόπηση/Ειδοποιήσεις/AI Βοηθός/Πελάτες/ΦΠΑ & myDATA/Κίνδυνοι & μαζικές/Ημερολόγιο/Εκκρεμότητες/Παραγωγικότητα/Έγγραφα/Ομάδα/Αμοιβές/Έξοδος.",
+    "/office/clients: tab-code, tab-afm, tab-how, link-code-input, link-code-submit; active link row with level combobox + unlink-<id>; pending AFM row for ANYHOW ΙΚΕ.",
+    "/office/clients/<orgId> renders client360-kpis; unknown UUID → HTTP 404 (Η σελίδα δεν βρέθηκε).",
+    "/office/vat: vat-month-input, vat-bulk-transmit, vat-bulk-export, vat-table, vat-row-<orgId>, vat-select-<orgId>.",
+    "/office/team: staff-email-input, staff-role-select, staff-invite-btn.",
+    "/office/fees: fee-row-<orgId>, fee-amount-<orgId>, fee-cadence-<orgId>, fee-note-<orgId>, fee-save-<orgId>, fees-generate-btn, fees-clients, fees-charges.",
+    "/office/inbox: inbox-list.",
+    "/office/assistant: assistant-run → LLM (POST /api/copilot/office-brief) returns Greek Σύνοψη + 6 Ενέργειες σήμερα with severity badges + per-client breakdown in ~25s.",
+    "/office/{cockpit,tasks,calendar,documents,productivity} all HTTP 200 for the accountant.",
+    "Business regression: /dashboard renders; /settings?tab=users role dropdown contains no 'accountant' role."
+  ],
+  "test_report_links": [],
+  "action_items": [
+    "(NAMING / LOW) Align testids to the documented spec — either add duplicate aliases or update docs. Preferred: keep per-orgId ids for fees (better for table interactions) and update the spec; add vat-bulk-books as an alias on the export button.",
+    "(SEED / MEDIUM) Provide a scenario where the accountant has a pending business-invite (status='pending' firmLinkInvites row) so future testing can visually assert org-invite-accept-<id> / org-invite-decline-<id>. Currently only the outbound-from-business path is testable end-to-end because the receiver is already linked.",
+    "(LOW) Consider a POST-based /logout route or a data-testid on the sign-out anchor — Playwright cannot easily switch users mid-run (GET /logout kept the session and any subsequent goto('/login') server-redirected to /dashboard)."
+  ],
+  "critical_code_review_comments": [
+    "resolveFirm/firmClients gate every /office/* server component; the 404 fallback on /office/clients/<orgId> for non-linked orgs is enforced server-side. Good.",
+    "AccountantAccessPanel uses server actions with useTransition and toast feedback — good UX; state (currentCode/level) is optimistically updated after action success.",
+    "FeesPanel per-row testids (fee-<field>-<orgId>) are the correct pattern for CRUD tables, but the review-request-listed bare ids should be documented consistently.",
+    "The office AI brief endpoint returns quickly (~25s including LLM streaming); the UI blocks on assistant-run until [data-testid=assistant-result] mounts — no error state was observed."
+  ],
+  "updated_files": [],
+  "success_rate": { "backend": "n/a (frontend-only)", "frontend": "100% of testable flows (13/13 verified). 1 flow (business→accountant invite receiver-side) blocked by seed state." },
+  "test_credentials": "demo@timologio.gr / demo1234 (business owner); office@koletsas.gr / office1234 (accounting firm owner).",
+  "seed_data_creation": "None persisted intentionally. During the run a 6-digit code was generated (948730), and the existing active link's access level was toggled to μόνο ανάγνωση — main agent may want to reset it to 'full' before demoing.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "All accountant/office testids exist and are functional. Key naming: use [data-testid=\"vat-bulk-export\"] (not vat-bulk-books) and fee-*-<orgId> per-row (not bare fee-*). For playwright login, use `async with page.expect_navigation(): await page.click('button[type=submit]')` — plain networkidle sometimes returns before the server-side redirect resolves. /logout does NOT clear the cookie (GET). To switch users you must clear cookies via browser context. Accountant has 1 active link (Δήμος Παπαδόπουλος, orgId fa82eab8-ce41-4d73-8a3f-05a0f63f1002) and 1 pending AFM request (ANYHOW ΙΚΕ).",
+  "rca of the issue": "N/A — no defects blocking release. Only two low-severity docs/naming deltas and one seed-state limitation preventing full org-invite receiver-side visual verification."
+}

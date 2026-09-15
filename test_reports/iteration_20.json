@@ -1,0 +1,54 @@
+{
+  "summary": "Full end-to-end validation of the two new features (Risks radar at /risks + AI Copilot collections agent at /copilot) plus regressions (CRM/new, invoice series 1.2/1.3, mobile A4 & line labels). ALL primary flows pass. Cron endpoint returns score/notifications for both orgs. Risks page renders score, severity counters, findings, recheck & AI advice dialog (AI response received in ~30s in Greek with summary, numbered steps, prevention). Dashboard risk-radar-card is visible with score 29. Copilot proposes actions with double-confirmation, approve→confirm→execute→card locks, audit log records ai_call_task / ai_reminder_sent. Read-only accountant is properly blocked with Greek toast 'Δεν έχετε δικαίωμα για αυτή την ενέργεια (ρόλος: accountant).' — no crash. /crm/new loads without error, opportunity submission redirects to /crm. /invoices/new dropdown shows 1.2 ΤΠ-ΕΕ and 1.3 ΤΠ-3Χ; selecting ΤΠ-ΕΕ surfaces myDATA/εξαίρεση copy. Mobile 390×844: /invoices/new shows all four line labels (Ποσότητα, Τιμή μον., Έκπτωση %, ΦΠΑ) and /invoices/[id] has no horizontal overflow (scrollWidth=390=bodyWidth=viewport).",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "Risks page recheck", "issue": "No visible toast captured via [data-sonner-toast] after clicking risk-recheck-btn. The spec says 'εμφανίζει toast με το σκορ'. Data refresh does happen (findings re-render), but the toast either does not fire or dismisses before Playwright can read it. Worth verifying manually.", "affected_selectors": ["[data-testid=\"risk-recheck-btn\"]", "[data-sonner-toast]"]},
+      {"flow": "Collections proposals variety", "issue": "For the owner org only ONE proposal card (call_task) is returned by the AI. Kinds 'send_reminder' / 'late_charges' / 'credit_limit' / 'installment_plan' were not seen in this run — could be intentional (only one overdue invoice with prior reminder within 12 days), but the review request implies the editable recipient/subject/body fields on email cards should be exercised. Recommend seeding an older overdue invoice with no reminder to hit send_reminder path."}
+    ],
+    "design_issues": []
+  },
+  "verified_features": [
+    "POST /api/cron/risks with Bearer dev-cron-secret-change-me → {ok:true, orgs:[{orgId, score:29, notified:2},{orgId, score:24, notified:2}]}. Header bell shows badge '8'.",
+    "/risks: risk-score-value=29, risk-count-critical=2, high=0, medium=2, low=1, 5 risk-item-* rendered (mydata_not_sent first), risk-recheck-btn + 5 risk-ai-btn-* present.",
+    "/risks AI advice: risk-ai-dialog opens, Claude Sonnet answer arrives in ~30s in Greek — 'Εντοπίστηκαν 9 εκδοθέντα παραστατικά…' with numbered steps and legal reference (Α.1138/2020).",
+    "Dashboard risk-radar-card + risk-radar-score=29 render; card links to /risks.",
+    "/copilot: collections-analyse-btn returns 1 proposal (call_task, HIGH-VALUE 3.210,08€) with 'Διπλή επιβεβαίωση' badge. approve-btn → confirm-btn revealed → after confirm the action executes and audit log gets ai_call_task entry.",
+    "collection-reject-btn (generic id, not per-kind) removes card without side effects.",
+    "Ρυθμίσεις → Ιστορικό (/settings?tab=audit) contains ai_reminder_sent AND ai_call_task rows created via /copilot.",
+    "Read-only accountant (logistis@timologio.gr): analyse-btn is enabled but the server action rejects with sonner toast 'Δεν έχετε δικαίωμα για αυτή την ενέργεια (ρόλος: accountant).' — no crash, no cards created.",
+    "/crm/new loads clean (no error), opp-title-input/opp-amount-input/opp-submit-btn wired, submission redirects to /crm.",
+    "/invoices/new series combobox lists both 'ΤΠ-ΕΕ – Τιμολόγιο Πώλησης Ενδοκοινοτικό (1.2)' and 'ΤΠ-3Χ – Τιμολόγιο Πώλησης Τρίτων Χωρών (1.3)'. Selecting ΤΠ-ΕΕ surfaces myDATA/εξαίρεση content.",
+    "Mobile 390×844 /invoices/new: labels Ποσότητα, Τιμή μον., Έκπτωση %, ΦΠΑ all rendered above line inputs, scrollWidth=390.",
+    "Mobile 390×844 /invoices/[id] (ΤΠΥ-0006): scrollWidth=390, bodyWidth=390, A4 preview scaled/legible (screenshot saved)."
+  ],
+  "raw_evidence": {
+    "cron_risks": "{\"ok\":true,\"ranAt\":\"2026-09-12T11:56:27.214Z\",\"orgs\":[{\"orgId\":\"fa82eab8-…\",\"score\":29,\"notified\":2},{\"orgId\":\"4c2e99c3-…\",\"score\":24,\"notified\":2}]}",
+    "risks_ai_sample": "Εντοπίστηκαν 9 εκδοθέντα παραστατικά συνολικού ύψους 10.794,63€ που δεν έχουν διαβιβαστεί στο myDATA … (numbered steps + Α.1138/2020)",
+    "readonly_toast": "Δεν έχετε δικαίωμα για αυτή την ενέργεια (ρόλος: accountant).",
+    "invoice_series_options": ["ΑΛΠ (11.1)","ΑΠΥ (11.2)","ΔΑ (9.3)","ΠΡ (QUOTE)","ΠΤ (5.1)","ΤΠ (1.1)","ΤΠ-3Χ (1.3)","ΤΠ-ΕΕ (1.2)","ΤΠΥ (2.1)","ΤΠΥ-ΕΕ (2.2)"],
+    "mobile_invoice_dims": {"sw":390,"bw":390,"vw":390}
+  },
+  "test_report_links": [],
+  "action_items": [
+    "(LOW) Verify that risk-recheck-btn surfaces a Sonner toast with the new score — my automation did not observe one via [data-sonner-toast]. If the toast fires and auto-dismisses in <1s, consider bumping duration to 3-4s so users notice it.",
+    "(LOW/OPTIONAL) Seed at least one very-late (>15 days) unpaid invoice with NO recent reminder so the AI Copilot proposes 'send_reminder' and QA can exercise the editable recipient/subject/body fields + email outbox path end-to-end. Right now only call_task fires because the sole overdue invoice has a same-day reminder history.",
+    "(NIT) collections-agent.tsx uses a generic data-testid='collection-reject-btn' rather than 'collection-reject-<kind>' as the review copy implies. Not a bug — both scripts and code agree — but worth aligning docs."
+  ],
+  "critical_code_review_comments": [
+    "risks page + copilot flows call server actions with proper role gating (read-only rejected server-side). Good.",
+    "/api/cron/risks correctly returns per-org score and notification count; header Bearer secret enforced.",
+    "HIGH_VALUE_THRESHOLD=500 double-confirmation flow works and the confirm button appears in a distinct panel — matches spec.",
+    "Risk-radar-card on dashboard has proper testids (risk-radar-card + risk-radar-score) and clickable CTA.",
+    "One minor: after execute the card body shows the success message but there are no editable inputs to actually 'lock' for call_task — verify visual lock state (green banner + card border) still applies on send_reminder cards (not exercised)."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100%", "frontend": "100% (core flows) — 2 low-priority observations logged"},
+  "test_credentials": "demo@timologio.gr / demo1234 (owner). logistis@timologio.gr / demo1234 (accountant/read-only). Cron: Bearer dev-cron-secret-change-me.",
+  "seed_data_creation": "Created a CRM opportunity via /crm/new (TEST_QA_<timestamp>, 1500€) — cleanup optional. Executed one call_task action via Copilot which added audit rows and a task entry.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "All new-feature testids (risk-score-value, risk-count-*, risk-item-*, risk-ai-btn-<code>, risk-ai-dialog, risk-recheck-btn, risk-radar-card, risk-radar-score, collections-analyse-btn, collection-action-<kind>, collection-approve-<kind>, collection-confirm-btn, collection-reject-btn) are in place and functional. AI endpoints via /api/copilot/* take 20-40s. If retesting on a session that never navigated away from /login, first navigate elsewhere then back — page.goto('/login') while already there does not always re-hydrate the form in Playwright.",
+  "rca of the issue": "N/A — no bugs identified in this iteration."
+}

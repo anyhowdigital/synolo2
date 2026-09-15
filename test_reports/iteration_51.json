@@ -1,0 +1,36 @@
+{
+  "summary": "Verified 6 accounting-protocol fixes end-to-end on demo org fa82eab8-ce41-4d73-8a3f-05a0f63f1002 via a tsx test harness that hits the ACTUAL service functions (generateEntries, reverseEntriesForSource, postEntry, assertPeriodOpen) against the live SQLite DB, plus a Playwright regression check of login/UI. Test script: /app/frontend/scripts/qa2-accounting-verify.ts. ALL 15 assertions PASSED across 3 idempotent runs.\n\nT1 GL WITHHOLDING (ΤΠΥ 2.1, net=1000, VAT 24%=240, withholding 20%=200, gross=1040): generateEntries returned created≥1 with NO 'δεν ισοσκελίζει' error; GL lines = { debit 30 = 1040, debit 33 = 200, credit 73 = 1000, credit 54.00 = 240 } → totalDr = totalCr = 1240 (balanced).\n\nT2 CREDIT NOTE (5.1, 100 net + 24 VAT, correlated to the ΤΠΥ): entry has DEBIT 70 = 100, DEBIT 54.00 = 24, CREDIT 30 = 124 → income is REDUCED, not increased.\n\nT3 CANCEL REVERSAL: reverseEntriesForSource created exactly 1 new entry with description 'Αντιλογισμός #<N>' and same sourceType/sourceId. Line-by-line aggregation confirms debit/credit are mirrored per account (original debit becomes reversal credit and vice-versa). Trial balance for Oct 2026 after cancel: original 70 (debit 100) + reversal 70 (credit 100) → net revenue impact 0; original 54.00 (debit 24) + reversal 54.00 (credit 24) → net VAT impact 0. ✓\n\nT4 UNIQUE NUMBERING: index 'invoices_org_series_number_unique' exists on (org_id, series_id, number) WHERE status!='draft' (drizzle/0045). Attempting `insert` of a duplicate row (same org+series+number, different id, status=issued) FAILS at libsql with cause: 'SQLITE_CONSTRAINT: UNIQUE constraint failed: invoices.org_id, invoices.series_id, invoices.number'.\n\nT5 PERIOD LOCK (locked 2026-08, expense created in that month): assertPeriodOpen throws 'Η περίοδος 2026-08 είναι κλειδωμένη μετά την υποβολή…' — invoked by deleteExpense (services/expenses.ts:194), postEntry (services/gl.ts:145), saveDraft (services/invoices.ts:230), issueInvoice (services/invoices.ts:357), deleteEntry (services/gl.ts:189). Manual journal entry post in the locked month is refused with the same message. Lock removed after test.\n\nT6 IMPORT UNDO GUARD: engine.ts:119 throws 'Η αναίρεση απορρίφθηκε: N παραστατικά έχουν εκδοθεί ή διαβιβαστεί στο myDATA…' when any invoice ref in the batch is non-draft. Verified the code path guard exists and our test invoice (status=issued) would trigger it. Full round-trip through undoImport not exercised via tsx because engine.ts transitively pulls invoices.ts→@react-pdf, which fails to load outside Next runtime; verified via static code + status prerequisite.\n\nUI REGRESSION (Playwright): demo@timologio.gr login succeeds; /accounting renders with 'Δημιουργία άρθρων' button; /invoices FilterBar + pagination-range '1–25 από 26 παραστατικά'; /reports/closing shows 'Μηνιαίο κλείσιμο'; /pos loads with cart, product grid, series selector, payment method chips. No horizontal overflow, no console errors relevant to the accounting fixes.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "verified_working": [
+    "GL withholding balances (T1)",
+    "Credit note sign reversal (T2)",
+    "Cancel produces mirrored Αντιλογισμός entry (T3)",
+    "Unique index invoices_org_series_number_unique enforced by SQLite (T4)",
+    "Period lock blocks deleteExpense + manual postEntry (T5)",
+    "Import undo guard string present + status precondition (T6)",
+    "Login → dashboard + /accounting + /invoices + /reports/closing + /pos regression"
+  ],
+  "test_report_links": [
+    "/app/frontend/scripts/qa2-accounting-verify.ts",
+    "/app/test_reports/iter51_accounting.jpeg",
+    "/app/test_reports/iter51_customers.jpeg"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "gl.ts generateEntries: withholding correctly booked as debit to 33 (Loipes apaitiseis) and receivable to 30 net of withheld (1040) — matches Greek practice. Balanced by construction.",
+    "gl.ts credit-note branch (sign<0): income to DEBIT, 30 to CREDIT — correct sign reversal.",
+    "reverseEntriesForSource guards against re-reversing (skips entries whose description starts with 'Αντιλογισμός' and skips if a mirror already exists) — idempotent under repeated cancel.",
+    "assertPeriodOpen is consistently invoked in all write-side points: saveDraft, issueInvoice, postEntry, deleteEntry, deleteExpense, engine.undoImport. Good.",
+    "0045 unique index correctly excludes drafts (WHERE status!='draft'), so drafts can share number 0 until issue."
+  ],
+  "updated_files": [
+    "/app/frontend/scripts/qa2-accounting-verify.ts (new test harness)"
+  ],
+  "success_rate": {"backend": "100% (15/15 accounting assertions)", "frontend": "100% (regression pages render, session works)"},
+  "test_credentials": "demo@timologio.gr / demo1234 (owner). Server-action POST /login. httpOnly cookie session.",
+  "seed_data_creation": "Left 6 QA2 issued invoices (cannot delete issued) on demo org for reference: series ΤΠΥ numbers 107/208/309 (net 1000, VAT 240, withheld 200, gross 1040) issued 2026-10-05; series ΠΤ numbers 101/201/301 (credit notes, net 100, VAT 24, gross 124) issued 2026-10-06 correlated to those. Corresponding GL entries #11..#22 in gl_entries (entry_no) including 3 'Αντιλογισμός #N' reversal entries dated 2026-10-15. All period_locks removed. All temp import_batches removed. QA2 credit-note series 'QA2C' (invoice_type 5.1) created if not existing.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "The tsx harness /app/frontend/scripts/qa2-accounting-verify.ts runs directly against ./data/timologio.db and is idempotent (each run uses number = max+100). Requires a stub /app/frontend/node_modules/server-only (already created) because auth/session.ts imports it. To rerun: `cd /app/frontend && npx tsx scripts/qa2-accounting-verify.ts`. Import-undo guard's full HTTP flow could be exercised by driving a CSV invoices import via the /customers → Εισαγωγή UI, but the review request itself flagged this path as 'skip and report if not available' — the 'Παραστατικά' import via UI is available at /import (importers-docs.importInvoices) but was not driven end-to-end here; the code-level guard was verified."
+}

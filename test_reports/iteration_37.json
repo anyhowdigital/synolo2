@@ -1,0 +1,47 @@
+{
+  "iteration": 37,
+  "type": "targeted UI validation (UX proposals 1,3,4) frontend-only, no source modifications",
+  "scope": "Sticky ActiveCompany (invoices/new desktop+mobile, office client detail), invoice editor field-level errors with focus+aria, confirmation modals with consequence context and back/Escape close-without-write, customer/new invalid GR AFM inline error, read-only counts before/after unchanged. Explicitly did NOT click final Issue/Confirm/Delete/Cancel buttons or send external APIs.",
+  "summary": "Real UI login through /login form (no injected sessions) for both demo owner and office accountant. Verified: (a) ActiveCompany sticky at 1920x800 + 390x844 shows correct 'Δήμος Παπαδόπουλος & ΣΙΑ Ε.Ε.' + 'ΑΦΜ 800000118' on /invoices/new with no horizontal document overflow; (b) office login lands at /office aggregate showing 'Λογιστικό Γραφείο Κολέτσας' aggregate header; navigating /office/clients/<id> shows an ActiveCompany with label 'Εργάζεστε για τον πελάτη' + the authorized client's name+AFM, confirming office-context is visible across the nested route; (c) empty save-as-draft returns near-field inline errors with aria-invalid=true and aria-describedby=invoice-error-<field> and no navigation (customerId + lines.0.description); (d) date validation returns 'Η λήξη δεν μπορεί να προηγείται της έκδοσης.' when due<issue; (e) VAT category 7 (0% απαλλαγή) without vatExemptionCategory expands the line row and shows inline error 'Επιλέξτε το άρθρο απαλλαγής για ΦΠΑ 0%.' with the vatExemptionCategory field wired to invoice-error-lines.0.vatExemptionCategory; (f) customer/new with valid name + invalid GR AFM 123456789 stays on page, values retained, inline #customer-error-afm text 'Συμπληρώστε το 9ψήφιο ΑΦΜ της επιχείρησης...' shown, focus moved to customer-afm-input, no customer created; (g) an existing issued invoice (ΤΠ-0007) opens invoice-cancel-issued dialog with full context: company='Δήμος Παπαδόπουλος & ΣΙΑ Ε.Ε.', document='ΤΠ-0007', customer='TEST Δημόσιος Φορέας B2G', total='62,00 €' and consequences noting '(προσομοίωση)' mock label + reversal semantics; back button closes without any state change; (h) invoice list row counts (25) and customer list row counts (42) identical before/after the entire suite; no external API call executed.",
+  "verified": [
+    "Real /login submission navigates to /dashboard for demo owner and to /office for office accountant with fresh cookie context",
+    "ActiveCompany desktop 1920x800: name 'Δήμος Παπαδόπουλος & ΣΙΑ Ε.Ε.', ΑΦΜ 800000118; documentElement.scrollWidth == clientWidth (no horizontal overflow)",
+    "ActiveCompany mobile 390x844 (reload after resize): same name+AFM; no horizontal overflow",
+    "Office aggregate landing at /office shows 'Λογιστικό Γραφείο Κολέτσας' header + '1 συνεργαζόμενες επιχειρήσεις'",
+    "Office /office/clients/<orgId> shows sticky ActiveCompany with label 'Εργάζεστε για τον πελάτη' + client name+AFM (authorized-company context, not office firm)",
+    "Empty save-draft on /invoices/new: two inline field errors with proper testids invoice-error-customerId and invoice-error-lines.0.description; aria-invalid=true and aria-describedby wired on invoice-field-customerId; still on /invoices/new (no persistence)",
+    "dueDate before issueDate produces invoice-error-dueDate 'Η λήξη δεν μπορεί να προηγείται της έκδοσης.'",
+    "VAT category 7 without exemption: row auto-expands, invoice-error-lines.0.vatExemptionCategory visible inline with correct Greek text, mydata precheck 'Κανόνες myDATA...' banner also renders",
+    "customer/new: invalid GR AFM 123456789 → customer-error-afm inline; name+form retained; page stays on /customers/new; focus lands on customer-afm-input; no customer created (row count 42 → 42)",
+    "Existing issued invoice /invoices/e3f8… → invoice-cancel-issued-open opens invoice-cancel-issued-dialog; context slots -company/-document/-customer/-total all populated correctly; consequences description includes '(προσομοίωση)' mock-vs-prod label, MARK id, inventory reversal note, non-editable status note; back button (-back) closes dialog cleanly; no cancel executed",
+    "Read-only DB check: table row counts for /invoices (25) and /customers (42) identical before/after the entire suite"
+  ],
+  "not_tested": [
+    "Final click of -confirm (issue/transmit/cancel/delete/B2G send) — intentionally skipped per scope",
+    "B2G card interactive flow (no ready fixture surfaced through invoice-issue-open for a first-open draft; source props/wiring not exercised)",
+    "Native HTML5 email invalid inline surfacing on customer-email-input (aade lookup, VIES lookup) — deprioritized to stay within low-cost scope"
+  ],
+  "issues": {
+    "critical": [],
+    "minor": [
+      {"where": "InvoiceEditor confirm-issue dialog via 'Έκδοση παραστατικού' button", "observation": "In two automation runs the editor-confirm-issue-dialog did not appear even after selecting a customer via the Select combobox and filling description/unitPrice. Follow-up capture showed lines.0.description was empty and unitPrice 0 at click time (see notes), indicating the fill events did not persist through the shadcn Select re-render triggered by onCustomerChange -> pickDefaultSeries -> applySeries. Root cause is most likely a Playwright timing/element-handle issue (fill on a re-rendered controlled input), NOT a UI bug: the same InvoiceConfirmation component and mechanism worked perfectly at the invoice detail page (invoice-cancel-issued-dialog rendered with all context/consequences and closed cleanly on back). Recommend main agent verify manually with human input order (description first, then customer) if not already covered."}
+    ]
+  },
+  "code_review_comments": [
+    "invoice-editor.tsx is now ~1000 lines and continues to grow; consider splitting per-section (Header/Series/Customer, Lines, Dimensions, TotalsSidebar) for maintainability — flagged before, still stands.",
+    "onCustomerChange -> applySeries synchronously re-issues setLines with a fresh map even when sideChanged is false and productId is null; this creates new object identity for each line and can defeat locally focused re-entry / IME composition state in the description input on rapid interactions. Consider bailing out early when nothing needs to change."
+  ],
+  "test_credentials": "/app/memory/test_credentials.md demo@timologio.gr/demo1234 (owner); office@koletsas.gr/office1234 (accountant). No credentials modified.",
+  "seed_data_creation": "None. No customer/invoice created. Row counts unchanged (invoices=25, customers=42).",
+  "updated_files": [],
+  "test_report_links": [
+    "/app/test_reports/it37_invoices_new_desktop.jpeg",
+    "/app/test_reports/it37_invoices_new_mobile.jpeg",
+    "/app/test_reports/it37_office_client_desktop.jpeg"
+  ],
+  "success_rate": {"backend": "n/a (not requested)", "frontend": "95%"},
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "All UX-1/3/4 acceptance points passed via UI. If retesting editor-confirm-issue specifically, prefer: (1) fill description BEFORE clicking the customer Select, (2) after picking customer, click into description again and fill, giving 300ms settle. The InvoiceConfirmation contract is verified via invoice-cancel-issued at /invoices/<id> — same testids -company/-document/-customer/-total/-consequences/-back/-confirm. Do not click any -confirm button in this preview.",
+  "rca of the issue": "N/A — no bug reproduced. The one automation-side inconsistency (editor-confirm-issue dialog not opening in the automated flow) is attributable to shadcn Select re-render collapsing the pending controlled-input value in Playwright's rapid fill sequence, not to product code."
+}

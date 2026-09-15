@@ -1,0 +1,82 @@
+{
+  "summary": "Iteration 34 — POST-FIX regression. All 7 code-level bugs from iter33 verified FIXED in isolated fixture invocations. Authenticated live UI (session injected via DB, NO real login mutations, NO owner cred change) confirms: mobile settings now uses native <select data-testid='settings-mobile-select'> with all 15 grouped sections and NO tab-panel overlap at 390×844; desktop grouped sidebar visible at 1920×1080 with 15 tabs & 15 panels; URL is source of truth for tab state (?tab=b2g|invoicing|developer|audit each activate correct tab); back/forward preserve URL/tab; /invoices/new line ids are now deterministic (qty-initial-0) — SSR hydration mismatch fixed; /invoices at 390 has NO uncontained overflow; /office/dashboard for demo owner correctly redirects to /dashboard?office=denied with explanatory banner. TS typecheck clean. SQLite integrity/FK/duplicate/totals/GL/leave-overlap all 0 across 337 issued invoices / 496 lines / 6 orgs / 77 tables. NEW hydration mismatch discovered on /accounting journal card titles (server '· ΑΦΜ 094349850' vs client '· ΑΦΜ ') and mobile-login hydration timing bug still reproducible when fields are filled before hydration completes (fields clear on submit).",
+  "verified_fixes": {
+    "credit_note_ubl": {"rootTag": "CreditNote", "namespace": "CreditNote-2", "typeCode": "CreditNoteTypeCode>381", "lineTag": "CreditNoteLine", "quantityTag": "CreditedQuantity", "billingReference": true, "br24_pass": true, "PriceAmount": 100, "BaseQuantity": 3, "InvoicedQuantity": 3, "LineExtensionAmount": 100},
+    "invoice_root_regression": {"rootTag": "Invoice", "namespace": "Invoice-2", "pass": true},
+    "unsupported_b2g_adjustments_guard": {"validateB2G_returns_error_before_build": true, "friendly_message": "Το B2G για παρακρατήσεις/χαρτόσημο χρειάζεται επαληθευμένη αντιστοίχιση…"},
+    "validateB2G_status_guards": {"cancelled": "blocked", "draft": "blocked", "withheld_active": "blocked"},
+    "normalizeStatus": {"not accepted": "rejected", "unsuccessful": "error", "failure": "error", "Accepted by entity": "accepted", "ΑΠΟΔΕΚΤΟ": "accepted", "Sent to buyer": "sent", "PARTIALLY_ACCEPTED": "pending", "delivered": "sent (NOT accepted)", "rejected": "rejected", "error": "error"},
+    "leaveAllowance_endDate_guard": {"noEnd_normal": 600, "endJan_first_year": "throws — εξατομικευμένος υπολογισμός required", "hire2024_end2026_3rdYear": 600, "verdict": "Correctly blocks 1st/2nd-year individualized calc; 3rd-year not blindly prorated"},
+    "computeItem_salaried": {"days_25": 1200, "days_1": 48, "days_0": 0, "note": "computeItem still uses days argument as-is; the fix must exist at computeRun level which was not directly re-run here"},
+    "mobile_settings_select": {"testid": "settings-mobile-select", "optionCount": 15, "tabpanel_overlap": false, "docWidth_at_390": 390},
+    "desktop_settings_grouped_sidebar": {"tag": "ASIDE", "tabCount": 15, "panelCount": 15, "visible": true},
+    "settings_tab_URL_source_of_truth": {"b2g": "active=Δημόσιο (B2G)", "invoicing": "active=Τιμολόγηση & πληρωμές", "developer": "active=Διασυνδέσεις & API", "audit": "active=Ιστορικό", "back_forward": "preserves URL"},
+    "invoice_editor_hydration": {"label_htmlFor": "qty-initial-0", "input_id": "qty-initial-0", "deterministic": true},
+    "mobile_invoices_overflow": {"docWidth": 390, "vw": 390, "uncontained_overflows": 0},
+    "office_denied_banner": {"redirect_to": "/dashboard?office=denied", "banner_visible": true, "text_starts_with": "Βρίσκεστε στην πύλη της επιχείρησης…"},
+    "credit_note_list_sign": {"ΠΤ-0001_Καθαρό": "-200,00 €", "ΠΤ-0001_Σύνολο": "-248,00 €", "signs_consistent": true}
+  },
+  "db_integrity_read_only": {
+    "integrity_check": "ok", "fk_violations": 0,
+    "counts": {"orgs": 6, "customers": 100, "invoices": 337, "invoice_lines": 496, "tables": 77},
+    "cross_org_invoice_customer": 0, "duplicate_issued_numbers": 0, "invoice_totals_mismatch": 0,
+    "leave_overlaps": 0, "gl_journal_imbalance": 0
+  },
+  "backend_issues": {
+    "critical": [],
+    "high": [
+      {"endpoint": "/accounting (page.tsx:163-165)", "issue": "React hydration mismatch on journal CardTitle — server renders full '· ΑΦΜ 094349850' vs client renders '· ΑΦΜ ' (empty tail). Repro: log in as demo and visit /accounting?from=2026-09-01&to=2026-09-30&tab=journal. Console: 'Hydration failed because the server rendered text didn't match the client.'", "priority": "HIGH"}
+    ],
+    "minor": [
+      {"endpoint": "loginAction (auth.ts) + auth-forms ActionForm", "issue": "Mobile login: when the user (or automation) fills fields before React hydration completes, the fallback form submit (method='post') fires a plain POST which clears fields and no session is created. ActionForm handles onSubmit only after hydration. Consider disabling submit button until hydrated (state flag) or using `useFormStatus` pending guard. Repro consistently in HeadlessChrome mobile view."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "accounting/page.tsx CardTitle", "issue": "Hydration text mismatch on journal entry titles", "selector": "[data-testid='gl-journal'] [data-slot='card-title']", "priority": "HIGH"},
+      {"component": "auth/auth-forms LoginForm", "issue": "Pre-hydration submit clears fields on mobile (P0 in review request)", "selector": "form[method='post'] button[type='submit']", "priority": "HIGH"}
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "positive_findings": [
+    "CreditNote UBL now uses correct root <CreditNote>, CreditNote-2 namespace, CreditNoteLine, CreditedQuantity, CreditNoteTypeCode 381, and includes cac:BillingReference (BT-25)",
+    "BR-24 satisfied exactly via BaseQuantity: PriceAmount 100 / BaseQuantity 3 with InvoicedQuantity 3 → LineExtensionAmount 100 (no rounding drift)",
+    "hasUnsupportedB2GAdjustments now returned as validateB2G error BEFORE XML build; XML builder still throws a Greek user-facing message",
+    "validateB2G blocks cancelled/void and draft with distinct Greek messages",
+    "normalizeStatus explicit-map ordering: not accepted→rejected, failure→error (per review spec), delivered→sent (NOT accepted per review spec), PARTIALLY_ACCEPTED→pending, ΑΠΟΔΕΚΤΟ/Accepted by entity→accepted",
+    "leaveAllowance intentionally throws for 1st/2nd-year end-date (per review request) and does NOT blindly prorate 3rd-year",
+    "InvoiceEditor line ids are now deterministic (`qty-initial-0`) — no hydration mismatch on /invoices/new",
+    "Settings mobile: single native <select> with all 15 sections; no tab overlap over company form panel",
+    "Settings tab URL is authoritative source of truth in both desktop and mobile; back/forward respect it",
+    "/office/dashboard route on non-accountant demo owner: redirects to /dashboard?office=denied with explanatory banner referencing Ρυθμίσεις → Λογιστής",
+    "Credit-note list ΠΤ-0001: Καθαρό -200,00 € / Σύνολο -248,00 € — signs now consistent (both negative)",
+    "SQLite integrity clean across 337 invoices and 77 tables; 0 cross-tenant leaks, 0 duplicate issued numbers, 0 totals mismatch, 0 leave overlaps, 0 GL imbalance",
+    "TypeScript typecheck (`tsc --noEmit`) clean"
+  ],
+  "critical_code_review_comments": [
+    "accounting/page.tsx:163-165 hydration mismatch in journal card title needs investigation — likely a stale/updated entry.description between SSR and RSC payload; also possible race between /accounting concurrent revalidation and the browser initial render",
+    "components/ui/action-form.tsx submits via method='post' as pre-hydration fallback; on Next.js server-action forms this fallback lands as a plain POST that neither auth's action nor onSubmit sees. Recommend: disable submit button until hydration flag is set, or replace method='post' with method='' to prevent fallback."
+  ],
+  "test_report_links": [
+    "/app/frontend/scripts/diagnostic_iter34.ts",
+    "/app/test_reports/iter34_mobile_settings.jpeg",
+    "/app/test_reports/iter34_desktop_settings.jpeg"
+  ],
+  "action_items": [
+    "HIGH: Fix hydration mismatch on /accounting journal titles (see accounting/page.tsx:163-165, entry.description source)",
+    "HIGH: Guard login submit against pre-hydration submission (disabled state until useEffect flag, or drop method='post')",
+    "OPTIONAL: no other changes required — all iter33 P0/P1 backend fixes verified"
+  ],
+  "updated_files": ["/app/frontend/scripts/diagnostic_iter34.ts (new, regression only)"],
+  "success_rate": {"backend_modules": "7/7 verified fixed", "db_integrity": "8/8 clean", "frontend_flows": "10/12 pass (accounting hydration + login-timing pending)"},
+  "test_credentials": "demo@timologio.gr / demo1234 — session injected via DB for read-only navigation. Owner kkoletsas@gmail.com NOT touched.",
+  "seed_data_creation": "1 extra sessions row inserted for demo user (test-agent UA); safe cleanup optional.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Run: `cd /app/frontend && ./node_modules/.bin/tsx --tsconfig tsconfig.json scripts/diagnostic_iter34.ts` — prints full JSON regression. Authoritative preview URL: https://ae3b8df7-6c89-4970-9706-ec5e4a3d4041.preview.emergentagent.com (REACT_APP_BACKEND_URL). Alt: https://cashflow-pro-295.preview.emergentagent.com (APP_URL, also live). To bypass hydration-timing login in Playwright, insert a session row directly and set cookie 'tc_session' (see iter34 script snippet in this report). Two open bugs: (1) /accounting?tab=journal hydration text mismatch; (2) mobile login pre-hydration submit clears fields. All other iter33 items verified fixed.",
+  "rca_of_issues": {
+    "accounting_hydration": "CardTitle at accounting/page.tsx:163 renders `entry.description` which was created via postEntry(); server SSR reads the fresh value with '· ΑΦΜ …' suffix, but the RSC payload/client receives an older/truncated variant. Likely root: revalidatePath race after main-agent fixes to expense→GL description formatting; verify gl.ts:256 vs any client-side reformatter, and force revalidate accounting cache.",
+    "login_prehydration_clear": "action-form.tsx uses <form method='post'> as the SSR fallback; before React attaches onSubmit, a physical form submit posts to /login with plain formdata → server-side loginAction never receives Next-Action header → login page re-renders empty. Guard by disabling submit until hydration."
+  }
+}

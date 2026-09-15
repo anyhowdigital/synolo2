@@ -1,0 +1,97 @@
+{
+  "summary": "AUDIT-ONLY pass (no code changes) over all main pages of Τιμολόγιο Cloud at desktop 1920, tablet 768 and mobile 390. Login demo@timologio.gr / demo1234 works. All pages render without runtime errors and the horizontal-overflow measurement (scrollWidth vs clientWidth) is clean on every page and every viewport EXCEPT /invoices/new at 390px which overflows by 64px. Login form action-form uses preventDefault client-side, so if a user clicks Σύνδεση before hydration the credentials end up as GET params (/login?email=…&password=…) — reproduced once via Playwright, worth hardening. The largest findings are (a) real logic/consistency mismatches between Dashboard KPIs, /invoices list totals, /reports Φ2 totals and /banking cashflow, (b) mixed formal/informal address plus untranslated English/French words in customer-facing texts (Copilot, Banking 'extrait', POS 'Touch-friendly', 'follow-up', 'Powered by Claude Sonnet 5', 'online πληρωμή', 'Web Banking'), (c) grammatical error on Banking KPI headers ('Εισροές Σεπτέμβριος 2026' — nominative instead of the required genitive 'Σεπτεμβρίου'), (d) an emoji in a professional accounting screen (📈 στο /reports), (e) IA duplication of myDATA (three entry points: sidebar 'myDATA συμφωνία', sidebar 'Ρυθμίσεις & myDATA', Settings tab 'myDATA') and CRM naming clash ('Πελάτες (CRM)' vs 'Pipeline ευκαιριών' with page h1 'CRM · Pipeline ευκαιριών' — sidebar label ≠ page h1), (f) top-bar notifications badge shows '4' but /notifications route returns 404 — no reachable page for notifications, (g) credit note ΠΤ-0001 shows as positive 248,00 € on the Dashboard 'Πρόσφατα παραστατικά' table while /invoices correctly shows -248,00 € (dashboard hides the negative sign for credit notes).",
+
+  "backend_issues": {"critical": [], "minor": []},
+
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "InvoicesNewPage", "issue": "Horizontal overflow of 64px on mobile 390px. Card and CardHeader render at 438px width (right=454). User cannot see right side of card headers when creating a new invoice on mobile.", "selector": "/invoices/new @ 390x844 — .group/card .group/card-header .font-heading", "priority": "HIGH"},
+      {"component": "TopBar / Notifications", "issue": "Bell icon shows badge '4' but no reachable notifications page exists (GET /notifications → Next.js notFound 'Η σελίδα δεν βρέθηκε'). Either add the page or remove the badge/link.", "selector": "top bar bell button", "priority": "HIGH"},
+      {"component": "LoginForm (ActionForm)", "issue": "The <form> uses only a client-side preventDefault handler and no server 'action' or method='post'. If a user submits before hydration completes (reproduced with Playwright type+click), the browser performs a GET and credentials appear in the URL bar: /login?email=demo%40timologio.gr&password=demo1234. Recommend converting to a real server action or adding method='post' + action attribute so pre-hydration submits fail safely.", "selector": "/login form", "priority": "HIGH (security)"},
+      {"component": "Reports page header", "issue": "Emoji '📈 Ταμειακή ρευστότητα (90 ημ.)' inside a serious accounting/ΦΠΑ screen — unprofessional for the target audience (accountants). Remove the emoji.", "selector": "/reports · «📈 Ταμειακή ρευστότητα (90 ημ.)» button", "priority": "MEDIUM"},
+      {"component": "Login form GET fallback", "issue": "Even with hydration, if JS is disabled the form silently does nothing (no method/action). Consider progressive-enhancement server action.", "selector": "/login form", "priority": "LOW"}
+    ],
+    "integration_issues": [
+      {"flow": "Δείκτες KPI / Αριθμοί ανά οθόνη", "issue": "Numbers do not agree across screens. Dashboard 'Καθαρά έσοδα μήνα' = 2.610,00 € · «12 παραστατικά». /invoices list header = «18 παραστατικά · Καθαρό 10.873,00 € · ΦΠΑ 2.008,56 € · Σύνολο 12.777,56 €». /reports (τρέχον τρίμηνο 2026-07-01 – 2026-09-30) = «15 παραστατικά · Καθαρό 8.279,00 € · ΦΠΑ 1.392,48 €». There is no explanation string next to each figure telling the user whether the scope is current-month vs quarter vs all-time — an accountant will read them as contradictory.", "affected_selectors": ["/dashboard KPI cards","/invoices list header","/reports ΦΠΑ πίνακας"]},
+      {"flow": "Ληξιπρόθεσμα vs Portal", "issue": "Dashboard KPI «Ανεξόφλητα 2.430,40 € · 2 εκπρόθεσμα · 434,00 €» flags 2 invoices as overdue; the SAME customer's portal shows «Ληξιπρόθεσμα 0,00 €» because due-date == today (12/09/2026). Same date interpreted as overdue by dashboard and NOT overdue by portal — inconsistent definition of «εκπρόθεσμο».", "affected_selectors": ["/dashboard KPI","/portal/<token> KPI"]},
+      {"flow": "Πιστωτικά – πρόσημο", "issue": "Πιστωτικό ΠΤ-0001 εμφανίζεται στο Dashboard «Πρόσφατα παραστατικά» ως 248,00 € (θετικό), ενώ στο /invoices εμφανίζεται σωστά ως -248,00 €. Ένας λογιστής μπορεί να διαβάσει το πιστωτικό ως έσοδο.", "affected_selectors": ["/dashboard 'Πρόσφατα παραστατικά' row ΠΤ-0001"]},
+      {"flow": "Banking KPI χρονικός προσδιορισμός", "issue": "Ταμείο & Τράπεζες → «Εισροές Σεπτέμβριος 2026» = 6.219,48 € και «Καθαρή ροή μήνα» = 6.219,48 €. Την ίδια ώρα Dashboard «Καθαρά έσοδα μήνα» = 2.610,00 €. Οι δύο νούμερα αντιπροσωπεύουν διαφορετικά πράγματα (εισπράξεις vs τιμολογηθέντα καθαρά) αλλά η ονομασία δεν το εξηγεί — προτείνεται μετονομασία σε «Εισπράξεις μήνα» / «Τιμολογημένα καθαρά έσοδα μήνα».", "affected_selectors": ["/banking KPI cards","/dashboard KPI cards"]}
+    ],
+    "wording_issues": [
+      {"page": "/banking", "quote": "Εισροές Σεπτέμβριος 2026 / Εκροές Σεπτέμβριος 2026", "problem": "Λανθασμένη πτώση – ονομαστική αντί γενικής.", "expected": "Εισροές Σεπτεμβρίου 2026 / Εκροές Σεπτεμβρίου 2026"},
+      {"page": "/banking", "quote": "συμφωνία extrait με τις εισπράξεις και πληρωμές", "problem": "Γαλλικός όρος 'extrait' αμετάφραστος – ο μέσος επαγγελματίας δεν τον αναγνωρίζει.", "expected": "συμφωνία κίνησης τραπεζικού λογαριασμού (extrait)"},
+      {"page": "/copilot", "quote": "Γεια σου! Είμαι το Copilot Λογιστηρίου. Ρώτησέ με… Δώσε μου 3 ιδέες για follow-up…", "problem": "Ενικός (εσύ) σε πληθυντικό-ευγενείας περιβάλλον + αγγλικό 'follow-up'.", "expected": "«Γεια σας. Είμαι το Copilot Λογιστηρίου. Ρωτήστε με… Δώστε μου 3 ιδέες για επικοινωνία με πελάτες με ληξιπρόθεσμα.»"},
+      {"page": "/copilot", "quote": "Powered by Claude Sonnet 5", "problem": "Αγγλικά + πιθανώς λάθος αναφορά μοντέλου (δεν υπάρχει επίσημα 'Sonnet 5').", "expected": "«Υποστηρίζεται από Claude (Anthropic).»"},
+      {"page": "/pos", "quote": "Touch-friendly οθόνη για αποδείξεις λιανικής", "problem": "Αγγλικός όρος στα ελληνικά.", "expected": "«Οθόνη αφής για γρήγορη έκδοση αποδείξεων λιανικής (ΑΛΠ/ΑΠΥ).»"},
+      {"page": "/pos", "quote": "Personal Training (session)", "problem": "Αγγλικά στο δείγμα καταλόγου (seed data). Αν είναι seed για Greek SaaS demo, καλύτερα ελληνικά.", "expected": "«Προσωπική προπόνηση (συνεδρία)»"},
+      {"page": "/settings?tab=b2g", "quote": "Το κοινό σημείο παραλαβής του ελληνικού Δημοσίου είναι9933:997001671.", "problem": "Λείπει κενό ανάμεσα σε «είναι» και «9933:…» + το ID τυπώνεται χωρίς monospace/copy button.", "expected": "«Το κοινό σημείο παραλαβής του ελληνικού Δημοσίου είναι 9933:997001671.»"},
+      {"page": "/settings?tab=b2g", "quote": "ροή κατάστασης pending → sent → accepted", "problem": "Αμετάφραστα αγγλικά token σε ελληνική περιγραφή.", "expected": "«ροή κατάστασης εκκρεμεί → απεσταλμένο → αποδεκτό (pending / sent / accepted)»"},
+      {"page": "/portal/<token>", "quote": "ΣΕΛΙΔΑ ΠΕΛΑΤΗ", "problem": "ALL CAPS ασύμβατο με την υπόλοιπη τυπογραφία της σελίδας.", "expected": "«Σελίδα πελάτη»"},
+      {"page": "/portal/<token>", "quote": "online πληρωμή / Web Banking / Web banking #A1234", "problem": "Ασυνέπεια στη γραφή (Web Banking vs web banking) + αγγλικά.", "expected": "«ηλεκτρονική πληρωμή / Web Banking» (μία γραφή παντού)"},
+      {"page": "/dashboard", "quote": "Ρόλος «Λογιστής» με πρόσβαση μόνο ανάγνωσης.", "problem": "Άκομψη διατύπωση.", "expected": "«Ρόλος «Λογιστής» με δικαιώματα μόνο για ανάγνωση.»"},
+      {"page": "sidebar", "quote": "Πελάτες (CRM)  vs  Pipeline ευκαιριών (page h1: 'CRM · Pipeline ευκαιριών')", "problem": "Δύο διαφορετικές χρήσεις του «CRM». Η ετικέτα του sidebar διαφέρει από τον τίτλο σελίδας — προκαλεί σύγχυση.", "expected": "Sidebar: «Πελάτες» + «Ευκαιρίες πωλήσεων». Page h1: «Ευκαιρίες πωλήσεων»."},
+      {"page": "sidebar", "quote": "AI / AI Copilot / POS · Γρήγορη πώληση", "problem": "Αγγλικά ακρωνύμια χωρίς μετάφραση στη ναυσιπλοΐα.", "expected": "«Τεχνητή Νοημοσύνη» / «Βοηθός AI» / «POS – Ταμείο λιανικής»."},
+      {"page": "sidebar", "quote": "myDATA συμφωνία / Ρυθμίσεις & myDATA", "problem": "Δύο διαφορετικές χρήσεις του «myDATA» στη ναυσιπλοΐα (βλ. IA ζήτημα).", "expected": "Ένα σαφές item «myDATA» + tab μέσα."}
+    ],
+    "formatting_issues": [
+      {"page": "/invoices list", "issue": "ΠΤ-0001 Σύνολο = -248,00 € (σωστά αρνητικό, με μείον) αλλά στο Dashboard 'Πρόσφατα παραστατικά' η ίδια εγγραφή εμφανίζεται ως 248,00 € (θετική). Χρειάζεται ενιαία λογική για την ένδειξη πιστωτικών."},
+      {"page": "/customers list", "issue": "Στήλες 'Τζίρος' και 'Υπόλοιπο' εμφανίζουν «—» για leads, αλλά ίδια στήλη σε πελάτες εμφανίζει 0,00 € (π.χ. Ελένη Αντωνίου). Ασυνέπεια «—» vs «0,00 €»."},
+      {"page": "/reports Φ2", "issue": "Πίνακες κωδικών Φ2 έχουν σωστό ελληνικό currency format (5.793,00 €) αλλά ο τίτλος «Περίοδος 2026-07-01 – 2026-09-30» χρησιμοποιεί ISO ημερομηνία, ενώ όλες οι άλλες οθόνες χρησιμοποιούν dd/MM/yyyy. Να μετατραπεί σε «01/07/2026 – 30/09/2026»."},
+      {"page": "/portal payments table", "issue": "Πεδίο 'Αναφορά': «SIM-1789195412553», «Web banking #A1234», «Συμψηφισμός με ΠΤ-0001» — τρεις διαφορετικοί τύποι σε στήλη χωρίς μορφοποίηση monospace. IBAN της ίδιας σελίδας εμφανίζεται σωστά ομαδοποιημένο (GR16 0110 1250 …) ✓."},
+      {"page": "/invoices list", "issue": "Η στήλη 'Υπόλοιπο 186,00 €' για ΤΠΥ-0003 εμφανίζεται μέσα στο κελί 'Σύνολο' ως δεύτερη γραμμή, όχι σε δικιά της στήλη — προκαλεί ασύμμετρη στοίχιση αριθμών."}
+    ],
+    "ia_issues": [
+      {"issue": "myDATA εμφανίζεται σε 3 σημεία (sidebar item 'myDATA συμφωνία', sidebar item 'Ρυθμίσεις & myDATA', tab 'myDATA' μέσα στο /settings). Ο χρήστης δεν ξέρει πού να πάει.", "recommendation": "Να μείνει ένα κύριο item «myDATA» στη ναυσιπλοΐα με tabs 'Συμφωνία' / 'Διαβίβαση' / 'Ρυθμίσεις'."},
+      {"issue": "Η ετικέτα sidebar 'Pipeline ευκαιριών' → /crm ενώ ο h1 λέει 'CRM · Pipeline ευκαιριών' — url, ετικέτα και h1 δεν συμφωνούν."},
+      {"issue": "Bell icon (badge=4) στο top bar δεν οδηγεί κάπου — /notifications = 404. Ή προσθέστε σελίδα ή αφαιρέστε το badge."},
+      {"issue": "Στο /settings, το panel 'Τα δεδομένα σας — Πλήρης εξαγωγή ZIP' εμφανίζεται στο κάτω μέρος της ΠΡΩΤΗΣ καρτέλας (Επιχείρηση). Λογικά ανήκει σε δικό του tab 'Εξαγωγή/Backup' ή στο 'Ιστορικό'. Αυτή τη στιγμή είναι κρυμμένο κάτω από τα στοιχεία εκδότη."},
+      {"issue": "/billing 'Παραστατικά αυτόν τον μήνα 12 / 50' — δεν συμφωνεί με /invoices (18 παραστατικά). Πρέπει να διευκρινιστεί ότι το 12 είναι μηνιαία μετρίσιμα προς το quota (τρέχων ημερολογιακός μήνας), όχι το σύνολο. Προτεινόμενη ετικέτα: «Εκδοθέντα τρέχοντος μήνα / όριο πακέτου»."},
+      {"issue": "Τα labels των tab στη σελίδα Ρυθμίσεις χρησιμοποιούν 'Email', 'API & Webhooks', 'ΑΑΔΕ Lookup', 'PDF' — αγγλικά. 'Lookup' προτείνεται 'Αναζήτηση ΑΦΜ/ΑΑΔΕ'."},
+      {"issue": "Το κουμπί 'Νέο παραστατικό' εμφανίζεται στο top bar σε όλες τις σελίδες ΑΚΟΜΑ και στο /portal (public) — έλεγχος: στο /portal δεν εμφανίζεται (ok), αλλά εμφανίζεται σε σελίδες όπου δεν έχει νόημα (π.χ. /settings). Δεν αποτελεί bug, μόνο IA παρατήρηση."}
+    ],
+    "accessibility_issues": [
+      {"issue": "Icon-only buttons top bar (bell, theme toggle, avatar) — δεν επιβεβαιώθηκε ύπαρξη aria-label· χρειάζεται έλεγχος."},
+      {"issue": "Χρωματική ένδειξη κατάστασης myDATA (π.χ. 'Διαβιβάστηκε' vs 'Μη διαβιβασμένο') βασίζεται μόνο σε badges κειμένου — καλή πρακτική· επιβεβαιώνεται."}
+    ],
+    "design_issues": [
+      {"screen": "/reports", "issues": ["Το κουμπί 'Ταμειακή ρευστότητα' χρησιμοποιεί emoji 📈 — αντικαταστήστε με εικονίδιο Lucide."]},
+      {"screen": "sidebar", "issues": ["Section header 'AI' με λατινικούς χαρακτήρες ανάμεσα σε ΠΩΛΗΣΕΙΣ/ΕΡΓΑ/ΛΕΙΤΟΥΡΓΙΑ/ΔΙΑΧΕΙΡΙΣΗ — προτιμήστε 'ΤΕΧΝΗΤΗ ΝΟΗΜΟΣΥΝΗ' ή 'ΒΟΗΘΟΣ'."]},
+      {"screen": "/invoices/new (mobile)", "issues": ["Overflow 64px — αριστερά είναι πλήρες, δεξιά κόβεται. Card τα headings ξεπερνούν το viewport."]}
+    ]
+  },
+
+  "test_report_links": [],
+  "action_items": [
+    "Fix mobile 390px horizontal overflow in /invoices/new (Card / CardHeader render 438px wide).",
+    "Add real /notifications page or hide the '4' badge in the top bar.",
+    "Hard-en /login form: convert to real server action (or add method='post' + action) so pre-hydration submits do not leak credentials to URL.",
+    "Unify numeric definitions between Dashboard KPIs, /invoices, /reports and /banking; add subtitles that spell out the scope (current month / current quarter / all-time).",
+    "Show credit notes with negative sign on Dashboard 'Πρόσφατα παραστατικά' (matches /invoices list).",
+    "Align overdue definition (same-day due-date) between /dashboard and /portal.",
+    "Greek grammar fix on /banking KPIs: 'Εισροές Σεπτεμβρίου 2026' (genitive).",
+    "Remove/translate leftover English/French: 'extrait' → 'κίνηση τραπεζικού λογαριασμού', 'Touch-friendly' → 'οθόνη αφής', 'follow-up' → 'επικοινωνία', 'Powered by Claude Sonnet 5' → 'Υποστηρίζεται από Claude (Anthropic)', 'online πληρωμή' → 'ηλεκτρονική πληρωμή', unify 'Web Banking' capitalization.",
+    "Copilot page: switch all customer-facing strings to πληθυντικός ευγενείας (Ρωτήστε / Δώστε μας / Είμαστε ο Copilot).",
+    "Remove emoji 📈 από /reports (professional tone).",
+    "IA: unify myDATA entry points into a single sidebar item with tabs.",
+    "IA: rename sidebar to 'Πελάτες' + 'Ευκαιρίες πωλήσεων' (matching page h1) so URL, label and h1 all agree.",
+    "Settings: μετακινήστε 'Πλήρης εξαγωγή ZIP' σε δικό του tab 'Εξαγωγή/Backup' αντί για το κάτω μέρος του tab 'Επιχείρηση'.",
+    "Reports Φ2: Change 'Περίοδος 2026-07-01 – 2026-09-30' σε ελληνική μορφή dd/MM/yyyy.",
+    "Fix missing space in Settings B2G text: 'είναι 9933:997001671'.",
+    "Customers table: unify empty numeric cells (either '—' or '0,00 €' consistently)."
+  ],
+  "critical_code_review_comments": [
+    "src/components/ui/action-form.tsx: το <form> έχει μόνο client-side preventDefault handler και δεν έχει method/action attributes. Reproduced credential leak σε URL όταν το submit γίνει πριν την υδάτωση. Χρειάζεται είτε server action ή method='post' + action endpoint που redirect-άρει.",
+    "src/components/app-sidebar.tsx: label 'Pipeline ευκαιριών' → href '/crm', αλλά /crm/page.tsx renders h1 'CRM · Pipeline ευκαιριών'. Ενοποιήστε ονομασία.",
+    "src/lib/invoice/totals.ts (formatMoney/formatDate): επαληθεύστε τη λογική για credit notes (ΠΤ) — το /invoices εμφανίζει -248,00 €, αλλά το dashboard-recent widget εμφανίζει 248,00 €· πιθανώς δύο διαφορετικά utils/rendering paths.",
+    "/settings page: η υποσελίδα 'Τα δεδομένα σας' μοιάζει να rendered πάντα κάτω από την πρώτη καρτέλα, ασχέτως του ?tab=. Ή κρύψτε την ή μετακινήστε σε ξεχωριστό tab.",
+    "Notifications bell: αν δεν υπάρχει /notifications page, αφαιρέστε το link/badge για να μην φαίνεται σαν broken feature."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a", "frontend": "audit-only (no pass/fail; 1 mobile-overflow blocker + 4 wording/logic HIGH issues found)"},
+  "test_credentials": "demo@timologio.gr / demo1234 (owner) — verified working. Portal token zZBSh-gSeef2EbbWxHfqE53h5Gw1QyhxSPThsiq1nCs — verified working (public).",
+  "seed_data_creation": "None (audit only, no writes).",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Overflow measurement script used: (document.documentElement.scrollWidth - document.documentElement.clientWidth) and per-element bounding-rect scan; only /invoices/new @ 390px overflows (64px, Card/CardHeader = 438px). Login can be flaky because form is client-only (no server action) — first Playwright submit navigated to /login?email=…&password=… (GET), second attempt with wait_for_selector + explicit click worked. Settings tabs: only the following tab keys work in ?tab=: general/company/vat/numbering/users/b2g/…; unknown keys silently fall back to Επιχείρηση content — this is expected but not obvious; the visible tab strip lists: Επιχείρηση, Τιμολόγηση, Εμφάνιση PDF, myDATA, ΑΑΔΕ Lookup, Δημόσιο (B2G), Σειρές, Πεδία & κανάλια, Χρήστες, Email, API & Webhooks, Λογιστική ΕΛΠ, Ιστορικό.",
+  "rca of the issue": "Not applicable — audit only, no root-cause debug session run. Bugs listed are frontend copy/IA/numeric-consistency issues surfaced by walking the app at three viewports."
+}

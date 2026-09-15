@@ -1,0 +1,66 @@
+{
+  "summary": "Frontend testing of (A) Bulk OCR expenses and (B) Profitability report. OCR extraction, review UI, editing, tabs, period filter, CSV export, sidebar/reports links and the accountant Client 360 'Μεικτό περιθώριο μήνα' KPI all work. However the commit path is broken by a Next.js Server Action body-size limit — no bulk-OCR expenses can be created. This blocks verification of duplicate detection, supplier auto-creation and attachment storage.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "BulkOcrUploader (commitOcrExpensesAction)",
+        "issue": "Clicking 'Καταχώρηση επιλεγμένων' with two ~200KB receipts fails with 500. Server logs: 'Body exceeded 1 MB limit. To configure the body size limit for Server Actions, see next.config bodySizeLimit'. Page then shows the Greek generic error boundary 'Κάτι πήγε στραβά'. Root cause: commitOcrExpensesAction receives `fileDataUrl` (base64 data URLs) for every row inside a single Server Action call; two typical receipts already exceed the default 1 MB limit and the requirement is up to 30 files. Nothing gets persisted (no expenses, suppliers, attachments, audit) so bulk OCR is effectively unusable end-to-end.",
+        "selector": "[data-testid=\"bulk-ocr-commit\"]",
+        "priority": "CRITICAL"
+      },
+      {
+        "component": "BulkOcrUploader render",
+        "issue": "React warning: 'Cannot update a component (Router) while rendering a different component (BulkOcrUploader)'. Non-blocking but points to a setState-during-render / router.push call; should be moved into useEffect / startTransition.",
+        "selector": "components/expenses/bulk-ocr-uploader.tsx",
+        "priority": "LOW"
+      }
+    ],
+    "integration_issues": [
+      {
+        "flow": "Bulk OCR → drafts + supplier auto-link + attachment",
+        "issue": "Cannot be verified: commit action fails with 1MB body limit before hitting the DB. Once the size limit is raised (or files are sent via a route handler / FormData / upload endpoint instead of a Server Action arg), retest that (a) expenses appear on /expenses with status 'pending' / 'Σε εκκρεμότητα', (b) a new supplier is created if the ΑΦΜ is unknown, (c) the receipt is attached to the expense, and (d) duplicate detection flags a re-upload with the amber 'Πιθανή διπλοεγγραφή' badge and un-checks it.",
+        "affected_selectors": ["[data-testid=\"bulk-ocr-commit\"]", "[data-testid^=\"ocr-row-\"]"]
+      }
+    ],
+    "design_issues": []
+  },
+  "verified_ok": [
+    "demo@timologio.gr sees 'Μαζικό OCR (έως 30 αρχεία)' link on /expenses (data-testid=bulk-ocr-link, href=/expenses/ocr) — visible & clickable",
+    "/expenses/ocr uploads two test receipts via data-testid=bulk-ocr-input and renders both editable rows with all data-testids present (ocr-row-*, ocr-supplier-*, ocr-afm-*, ocr-number-*, ocr-date-*, ocr-net-*, ocr-vat-*, ocr-gross-*, ocr-desc-*, ocr-select-*)",
+    "OCR extraction values match expected exactly: ΔΕΗ Α.Ε./090000045/445678/2026-09-12/121.65/29.19/150.84 (95% confidence, badge 'Ενέργεια') and COSMOTE Α.Ε./094493766/90210/2026-09-15/89.50/21.48/110.98 (85% confidence, badge 'Τηλεπικοινωνίες')",
+    "Field editing recalculates: setting net=100.00 on row 0 updates gross from 150.84 to 129.19 (keeps VAT)",
+    "Unchecking data-testid=ocr-select-* reduces commit button count from 'Καταχώρηση επιλεγμένων (2)' to '(1)'",
+    "data-testid=bulk-ocr-clear button 'Καθαρισμός' is present next to file input (functional visually)",
+    "/reports has data-testid=profitability-link visible pointing to /reports/profitability",
+    "Sidebar entry 'Κερδοφορία' navigates to /reports/profitability",
+    "/reports/profitability renders profit-kpis with all six KPIs (Πωλήσεις 15.935,63 €, Κόστος πωληθέντων 6.412,00 €, Μεικτό κέρδος 9.523,63 €, Μεικτό περιθώριο 59.76%, Έξοδα περιόδου 411,80 €, Καθαρό αποτέλεσμα 9.111,83 €) and profit-customers-table with Top 5 / Bottom 5 lists",
+    "Tabs profit-tab-customers / profit-tab-projects / profit-tab-items switch and render the corresponding tables (profit-projects-table / profit-items-table) — projects table is empty as expected for the demo period (no time entries)",
+    "Period filter (profit-from/profit-to/profit-apply): narrowing to 2026-08-01..2026-08-31 changes KPIs to Πωλήσεις 5.669,00 €, Κόστος 1.962,00 €, Μεικτό κέρδος 3.707,00 €, Μεικτό περιθώριο 65.39% — filter works",
+    "CSV export via GET /api/reports/profitability.csv?tab=customers/items/projects returns Content-Type text/csv with correct Greek semicolon-separated headers and rows for all three tabs. Sample customers row: 'Logistics Hellas Μ.ΙΚΕ;7050;4450;2600;36.88;8742;0;1;1'",
+    "Accountant office@koletsas.gr on /office/clients/fa82eab8-… sees the new 'Μεικτό περιθώριο μήνα 56.66%' KPI card without errors",
+    "Regression: /expenses list and its existing single-receipt OCR uploader still render; sidebar and dashboard load without console errors"
+  ],
+  "test_report_links": [],
+  "action_items": [
+    "CRITICAL: Fix bulk-OCR commit exceeding Next.js Server Action 1 MB body limit. Preferred fixes: (a) raise it in next.config.ts → `experimental.serverActions.bodySizeLimit: '25mb'` (and pick a value that comfortably fits 30 receipts, since UI advertises up to 30 files); or (b) move file bytes out of the Server Action arg — upload via a POST route handler / FormData, keep only ids in the action.",
+    "Once fixed, retest end-to-end: draft creation with status 'pending', supplier auto-linking/creation by ΑΦΜ (check /suppliers), attachment stored on the expense, and duplicate detection banner + auto-uncheck on re-upload of receipt_dei.jpg.",
+    "Investigate the React 'setState during render' warning inside BulkOcrUploader (Router update during render). Likely a router.push / router.refresh called synchronously during render — wrap in useEffect or startTransition."
+  ],
+  "critical_code_review_comments": [
+    "src/app/actions/ocr-bulk.ts::commitOcrExpensesAction: passes full base64 data URLs of every receipt (fileDataUrl) as Server Action arguments. Combined with default 1 MB limit this is guaranteed to break when the user picks more than 1–2 medium-quality photos, and the feature promises up to 30. Either raise the limit or send files via a dedicated upload endpoint and pass only the resulting attachment id / temp key.",
+    "src/app/api/reports/profitability.csv/route.ts: no try/catch around service calls; if a downstream throws, Next.js falls back to the HTML error page (with status 200 during dev + turbopack in one flaky observation). Consider wrapping in try/catch and returning `new NextResponse('', {status:500})` or a proper JSON error.",
+    "src/components/expenses/bulk-ocr-uploader.tsx: React warning about setState-in-render (Router). Also, unchecking a row toggles selection via checkbox click but note the checkbox and label share the same click handler in some rows — verify no double toggle."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (frontend-only run)", "frontend": "≈75% (bulk-OCR commit path broken; everything else verified)"},
+  "test_credentials": "demo@timologio.gr / demo1234 and office@koletsas.gr / office1234 — both work",
+  "seed_data_creation": "None. No expenses were persisted because commit failed with the 1 MB limit.",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "The 1MB Server Action body limit is the sole blocker to full E2E validation of bulk OCR. After the main agent raises `experimental.serverActions.bodySizeLimit` in next.config.ts (or refactors to a POST upload), retest these items still pending: (1) commit → both expenses become pending drafts on /expenses; (2) supplier auto-creation via ΑΦΜ (ΔΕΗ 090000045 + COSMOTE 094493766 — COSMOTE probably already exists in demo seed); (3) attachment stored and visible on the expense detail page; (4) duplicate detection: re-upload receipt_dei.jpg after commit → amber 'Πιθανή διπλοεγγραφή' badge + row unchecked; (5) all created expenses MUST have status=pending, never auto-transmitted to myDATA (explicit requirement). Everything else (extraction accuracy, edits, tabs, filter, CSVs, Client 360 margin KPI, sidebar link) already passes.",
+  "rca of the issue": "Next.js 15 caps Server Action request bodies at 1 MB by default. In BulkOcrUploader → commitOcrExpensesAction, every selected receipt's raw base64 data URL is passed inside the Server Action arguments (rows[i].fileDataUrl). Two 200KB JPEGs → ~540KB base64 → close to the limit; three or more receipts virtually always exceed it. Because the exception occurs before any INSERT runs, no expense, supplier, attachment or audit row is written, and the client bubbles it up to the Greek error boundary ('Κάτι πήγε στραβά'). Mitigation: (a) `experimental.serverActions.bodySizeLimit: '25mb'` in next.config.ts, or (b) upload files via a route handler (multipart FormData) that stores them and returns ids, then pass only ids to commitOcrExpensesAction."
+}

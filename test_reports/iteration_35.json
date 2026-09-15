@@ -1,0 +1,65 @@
+{
+  "summary": "Iteration 35 — Σύνολο ERP landing + auth review (mobile 390x844 & desktop 1920x800). Real preview URL ae3b8df7…preview.emergentagent.com. LANDING renders new petrol/off-white editorial design with brand 'Σύνολο ERP', persona toggle (business/office), 18 feature cards, pricing (Μηνιαία/Ετήσια) and FAQ. NO 'pending/coming soon' badges observed. HOWEVER: (P0) LOGIN, FORGOT-PASSWORD SUBMIT BUTTONS ARE STUCK DISABLED FOREVER on desktop AND mobile — button text remains 'Προετοιμασία φόρμας…' with disabled=true & aria-busy=true even after 18s of wait post networkidle. This is the useSyncExternalStore hydration guard in SubmitButton (auth-forms.tsx:26-34) that never flips to 'ready'. Verified real login flow BLOCKED: force-removing disabled attr and clicking submits a plain POST that does NOT create a tc_session cookie (no server-action handler attached). Users cannot log in via UI. Notably /accountant-signup uses the same SubmitButton and IS enabled (button 'Δημιουργία λογαριασμού γραφείου' clickable) — so bug is scoped to LoginForm/ForgotPasswordForm subtree (possibly caused by SSR-time hydration error somewhere in that tree; landing has confirmed hydration mismatches in PlanCards aria-pressed/data-testid and office phone <a href=tel:…> vs plain text, per frontend dev-server logs). (P0-typography) Mobile hero <p> descripton computed 12px vs spec 16px. Auth mobile: description 12px vs 15px, label 14px vs 15px, submit button 14px vs 15px (input correct at 16px). Landing document overflow OK (scrollW==clientW==390 on mobile). No owner credential mutation attempted; no session injection used. NEW registration (email side-effect) explicitly NOT tested to avoid mail — MARKED not tested / not pass per spec.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "auth/auth-forms.tsx SubmitButton (LoginForm & ForgotPasswordForm)", "issue": "Submit button remains disabled with text 'Προετοιμασία φόρμας…' indefinitely on /login and /forgot-password (desktop 1920x800 AND mobile 390x844). useSyncExternalStore hydration flag never resolves to true. Blocks ALL UI logins. Same pattern in /accountant-signup works — so subtree-specific. Force-clicking after removing disabled attr submits plain POST with NO tc_session cookie set (Next Action handler not attached).", "selector": "button[type='submit'][data-testid='auth-submit-button']", "priority": "CRITICAL"},
+      {"component": "landing MarketingHero (mobile 390)", "issue": "Hero description paragraph computed font-size 12px; spec requires 16px on mobile", "selector": "main section p (hero description)", "priority": "HIGH"},
+      {"component": "auth-shell mobile side description (login)", "issue": "Side description <p> 12px on mobile; spec requires ~15px. Also label 14px & submit 14px vs spec 15px", "selector": ".synolo-auth-side p, form label, button[type='submit']", "priority": "MEDIUM"},
+      {"component": "PricingAndFaq/PlanCards", "issue": "SSR/CSR hydration mismatch on Μηνιαία/Ετήσια toggle: server renders aria-pressed=null and data-testid=null while client renders real values (frontend dev-server log). May contribute to overall hydration failure downstream.", "selector": "[data-testid='pricing-interval-monthly'], [data-testid='pricing-interval-yearly']", "priority": "HIGH"},
+      {"component": "Office employees table (unrelated /office page, but hydration mismatch logged)", "issue": "Server: <a href='tel:02119600175'>, Client: plain text 02119600175 — hydration mismatch in office employees tel cell", "selector": "table td (tel col)", "priority": "MEDIUM"}
+    ],
+    "integration_issues": [
+      {"flow": "Login (demo@timologio.gr / demo1234) via real UI", "issue": "Not reachable: submit permanently disabled; even bypass POST does not authenticate (no session cookie). Wrong-password path and retained-values verification NOT possible until hydration bug fixed.", "affected_selectors": ["[data-testid='auth-submit-button']", "[data-testid='login-email-input']", "[data-testid='login-password-input']"]},
+      {"flow": "Business signup duplicate email test", "issue": "NOT executed — /register is a chooser; would proceed to business form, but time-boxed after critical login block. Marked not-tested per Loop-Prevention.", "affected_selectors": []},
+      {"flow": "Accountant signup duplicate email test", "issue": "NOT executed for happy-path (email side-effect); form loads and submit button IS enabled ('Δημιουργία λογαριασμού γραφείου'). Duplicate-email server-error path not attempted this iteration.", "affected_selectors": ["[data-testid='auth-submit-button']"]}
+    ],
+    "design_issues": [
+      {"screen": "Mobile landing hero", "issues": ["Body description 12px is below spec 16px — user complained explicitly about very small mobile fonts"]},
+      {"screen": "Mobile /login auth side + form", "issues": ["Side description 12px vs spec 15px; label & button 14px vs spec 15px"]}
+    ]
+  },
+  "positive_findings": [
+    "Landing loads with 'Σύνολο ERP' brand, petrol/off-white palette; document title correctly 'Σύνολο ERP — …'",
+    "18 feature cards & filter groups (Όλο το Σύνολο / Πωλήσεις & λειτουργία / Χρήματα & AI / Λογιστική & ομάδα) present",
+    "Persona toggle (Επιχείρηση / Λογιστικό γραφείο) exists with aria-pressed state; content changes between personas",
+    "Pricing (Μηνιαία/Ετήσια) & FAQ (native <details>) sections render on mobile without horizontal overflow",
+    "No 'pending / coming soon' badges observed on any feature card; future provider/bridge described as goal not certified",
+    "/accountant-signup SubmitButton correctly enabled — form fully renders (name, email, password, ΑΦΜ optional, phone optional, city optional)",
+    "/register chooser (Επιχείρηση vs Λογιστικό γραφείο) renders correctly",
+    "PasskeyLoginButton visible on /login ('Σύνδεση με passkey')",
+    "PWA / preview root path serves /?preview=1 landing while allowing logged-in navigation preserved logically (auth session redirect works on login page: getCurrentUser -> /dashboard)",
+    "/api/health returns 200"
+  ],
+  "critical_code_review_comments": [
+    "auth-forms.tsx SubmitButton uses useSyncExternalStore(subscribeHydration, () => true, () => false) with a no-op subscribe. This is a valid isHydrated pattern, but on the /login subtree it never transitions to true. Suspect: hydration error higher up (PlanCards mismatch, office-page mismatch) OR the LoginForm useActionState first-render error prevents commit. Recommend: replace with a mount-flag: `const [ready, setReady] = useState(false); useEffect(() => setReady(true), []);` — much more resilient than useSyncExternalStore and works even if a sibling client component throws.",
+    "PlanCards mode='marketing' renders on the server without aria-pressed/data-testid attributes; the client-only variant adds them — causes hydration warning. Ensure the marketing variant produces identical attributes SSR and CSR (or wrap in a suppressHydrationWarning if intentional).",
+    "Office employees table renders <a href='tel:…'> conditionally; SSR/CSR differ. Ensure the phone cell renders the same on both sides (perhaps a client-only guard).",
+    "Mobile typography: introduce a media query at max-width: 480px lifting hero description to 16px, side description to 15px, form label/button to 15px per spec."
+  ],
+  "test_report_links": [
+    "/app/test_reports/iter35/landing_desktop.jpeg",
+    "/app/test_reports/iter35/landing_mobile.jpeg",
+    "/app/test_reports/iter35/landing_mobile_features.jpeg",
+    "/app/test_reports/iter35/landing_mobile_pricing.jpeg",
+    "/app/test_reports/iter35/login_desktop.jpeg",
+    "/app/test_reports/iter35/login_mobile_real.jpeg",
+    "/app/test_reports/iter35/login_stuck.jpeg",
+    "/app/test_reports/iter35/register_desktop.jpeg"
+  ],
+  "action_items": [
+    "P0: Fix SubmitButton hydration in auth-forms.tsx — swap useSyncExternalStore for useState+useEffect mount flag OR investigate SSR-time throw in LoginForm subtree so hydration completes",
+    "P0: Fix hydration mismatch in PlanCards (aria-pressed / data-testid null on SSR); this may be the upstream cause of the login-page hydration failure",
+    "P0: Bump mobile hero <p> font-size from 12px to 16px (user complaint); also raise auth mobile description/label/button to 15px",
+    "P1: Fix office employees tel-column SSR/CSR mismatch",
+    "P1: After fix, re-run: wrong-password then correct login flow, verify retained values, then verify /dashboard redirect and tc_session cookie set"
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "not-tested (no auth changes requested)", "frontend": "40% (landing OK; auth login/forgot-password critical block)"},
+  "test_credentials": "demo@timologio.gr / demo1234 (spec). Real UI login NOT executable due to P0 SubmitButton hydration bug. Owner kkoletsas@gmail.com untouched. No new credentials created.",
+  "seed_data_creation": "None. No DB writes, no session injection, no owner mutation.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Preview URL: https://ae3b8df7-6c89-4970-9706-ec5e4a3d4041.preview.emergentagent.com. Reproduce the P0 by opening /login or /forgot-password and waiting 15+s — button 'Προετοιμασία φόρμας…' stays disabled. Compare with /accountant-signup where button IS enabled. Frontend dev-server log at /var/log/supervisor/frontend.err.log shows hydration mismatches on PlanCards (aria-pressed/data-testid) and office employees tel col — investigate whether these upstream errors abort hydration on the /login route. Landing typography: hero <p> 12px vs 16px spec on mobile; auth mobile side <p> 12px vs 15px, labels/buttons 14px vs 15px. When P0 is fixed, run happy-path wrong→right login on both viewports (do NOT hit lockout: max 1 wrong password).",
+  "rca_of_issue": "auth-forms.tsx SubmitButton relies on useSyncExternalStore to detect hydration. When any client component inside the LoginForm/ForgotPasswordForm subtree throws or the tree gets a mismatch abort, React does not commit the client render, so getSnapshot() (which returns true) is never called on client, and the button stays with the server snapshot (false → disabled + 'Προετοιμασία φόρμας…'). PlanCards hydration mismatch is a strong candidate for the abort trigger (not on /login page itself, but the pattern indicates the codebase has other client-only branch conditions). A more robust fix is a plain useState(false)+useEffect(()=>setReady(true),[]) — this always commits after hydration regardless of nearby mismatches."
+}

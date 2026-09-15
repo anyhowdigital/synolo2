@@ -1,0 +1,335 @@
+{
+	"version": "7",
+	"dialect": "sqlite",
+	"entries": [
+		{
+			"idx": 0,
+			"version": "6",
+			"when": 1789050017014,
+			"tag": "0000_init",
+			"breakpoints": true
+		},
+		{
+			"idx": 1,
+			"version": "6",
+			"when": 1789052737534,
+			"tag": "0001_auth_saas_v2",
+			"breakpoints": true
+		},
+		{
+			"idx": 2,
+			"version": "6",
+			"when": 1789057454949,
+			"tag": "0002_v3_features",
+			"breakpoints": true
+		},
+		{
+			"idx": 3,
+			"version": "6",
+			"when": 1789058791647,
+			"tag": "0003_audit_actor",
+			"breakpoints": true
+		},
+		{
+			"idx": 4,
+			"version": "6",
+			"when": 1789060000000,
+			"tag": "0004_online_payments",
+			"breakpoints": true
+		},
+		{
+			"idx": 5,
+			"version": "6",
+			"when": 1789076567645,
+			"tag": "0005_notes_attachments",
+			"breakpoints": true
+		},
+		{
+			"idx": 6,
+			"version": "6",
+			"when": 1789086034890,
+			"tag": "0006_login_attempts",
+			"breakpoints": true
+		},
+		{
+			"idx": 7,
+			"version": "6",
+			"when": 1789090500054,
+			"tag": "0007_tags_portal_notifications",
+			"breakpoints": true
+		},
+		{
+			"idx": 8,
+			"version": "6",
+			"when": 1789094471521,
+			"tag": "0008_quote_signature",
+			"breakpoints": true
+		},
+		{
+			"idx": 9,
+			"version": "6",
+			"when": 1789095393802,
+			"tag": "0009_pdf_theme_series_terms",
+			"breakpoints": true
+		},
+		{
+			"idx": 10,
+			"version": "6",
+			"when": 1789097438782,
+			"tag": "0010_suppliers_purchases",
+			"breakpoints": true
+		},
+		{
+			"idx": 11,
+			"version": "6",
+			"when": 1789098614619,
+			"tag": "0011_inventory",
+			"breakpoints": true
+		},
+		{
+			"idx": 12,
+			"version": "6",
+			"when": 1789099911051,
+			"tag": "0012_banking",
+			"breakpoints": true
+		},
+		{
+			"idx": 13,
+			"version": "6",
+			"when": 1789104384807,
+			"tag": "0013_customer_credits",
+			"breakpoints": true
+		},
+		{
+			"idx": 14,
+			"version": "6",
+			"when": 1789105973336,
+			"tag": "0014_price_lists",
+			"breakpoints": true
+		},
+		{
+			"idx": 15,
+			"version": "6",
+			"when": 1789200000000,
+			"tag": "0015_projects",
+			"breakpoints": true
+		},
+		{
+			"idx": 16,
+			"version": "6",
+			"when": 1789300000000,
+			"tag": "0016_crm_pipeline",
+			"breakpoints": true
+		},
+		{
+			"idx": 17,
+			"version": "6",
+			"when": 1789400000000,
+			"tag": "0017_aade_creds",
+			"breakpoints": true
+		},
+		{
+			"idx": 18,
+			"version": "6",
+			"when": 1789500000000,
+			"tag": "0018_email_provider_id",
+			"breakpoints": true
+		},
+		{
+			"idx": 19,
+			"version": "6",
+			"when": 1789600000000,
+			"tag": "0019_webauthn",
+			"breakpoints": true
+		},
+		{
+			"idx": 20,
+			"version": "6",
+			"when": 1789700000000,
+			"tag": "0020_b2g",
+			"breakpoints": true
+		},
+		{
+			"idx": 21,
+			"version": "6",
+			"when": 1789800000000,
+			"tag": "0021_b2g_auto",
+			"breakpoints": true
+		},
+		{
+			"idx": 22,
+			"version": "6",
+			"when": 1789900000000,
+			"tag": "0022_subscriptions",
+			"breakpoints": true
+		},
+		{
+			"idx": 23,
+			"version": "6",
+			"when": 1790000000000,
+			"tag": "0023_dashboard_prefs",
+			"breakpoints": true
+		},
+		{
+			"idx": 24,
+			"version": "6",
+			"when": 1790100000000,
+			"tag": "0024_credit_late_fees",
+			"breakpoints": true
+		},
+		{
+			"idx": 25,
+			"version": "6",
+			"when": 1790200000000,
+			"tag": "0025_provider_info",
+			"breakpoints": true
+		},
+		{
+			"idx": 26,
+			"version": "6",
+			"when": 1790300000000,
+			"tag": "0026_risk_snapshots",
+			"breakpoints": true
+		},
+		{
+			"idx": 27,
+			"version": "6",
+			"when": 1790400000000,
+			"tag": "0027_import_batches",
+			"breakpoints": true
+		},
+		{
+			"idx": 28,
+			"version": "6",
+			"when": 1790500000000,
+			"tag": "0028_office_tools",
+			"breakpoints": true
+		},
+		{
+			"idx": 29,
+			"version": "6",
+			"when": 1790600000000,
+			"tag": "0029_periods_docs",
+			"breakpoints": true
+		},
+		{
+			"idx": 30,
+			"version": "6",
+			"when": 1790700000000,
+			"tag": "0030_accountant_portal",
+			"breakpoints": true
+		},
+		{
+			"idx": 31,
+			"version": "6",
+			"when": 1790800000000,
+			"tag": "0031_office_extreme",
+			"breakpoints": true
+		},
+		{
+			"idx": 32,
+			"version": "6",
+			"when": 1790900000000,
+			"tag": "0032_bank_rules",
+			"breakpoints": true
+		},
+		{
+			"idx": 33,
+			"version": "6",
+			"when": 1791000000000,
+			"tag": "0033_office_dashboards",
+			"breakpoints": true
+		},
+		{
+			"idx": 34,
+			"version": "6",
+			"when": 1791100000000,
+			"tag": "0034_double_entry",
+			"breakpoints": true
+		},
+		{
+			"idx": 35,
+			"version": "6",
+			"when": 1791200000000,
+			"tag": "0035_doc_registry",
+			"breakpoints": true
+		},
+		{
+			"idx": 36,
+			"version": "6",
+			"when": 1791300000000,
+			"tag": "0036_payroll_assets",
+			"breakpoints": true
+		},
+		{
+			"idx": 37,
+			"version": "6",
+			"when": 1791400000000,
+			"tag": "0037_payroll_phase_c",
+			"breakpoints": true
+		},
+		{
+			"idx": 38,
+			"version": "6",
+			"when": 1791500000000,
+			"tag": "0038_ergani_live_leave",
+			"breakpoints": true
+		},
+		{
+			"idx": 39,
+			"version": "6",
+			"when": 1791600000000,
+			"tag": "0039_tax_profile",
+			"breakpoints": true
+		},
+		{
+			"idx": 40,
+			"version": "6",
+			"when": 1791600001000,
+			"tag": "0040_tax_opportunities",
+			"breakpoints": true
+		},
+		{
+			"idx": 41,
+			"version": "6",
+			"when": 1791600002000,
+			"tag": "0041_tax_rule_reviews",
+			"breakpoints": true
+		},
+		{
+			"idx": 42,
+			"version": "6",
+			"when": 1791600003000,
+			"tag": "0042_accounting_bridge",
+			"breakpoints": true
+		},
+		{
+			"idx": 43,
+			"version": "6",
+			"when": 1791600004000,
+			"tag": "0043_platform_flags",
+			"breakpoints": true
+		},
+		{
+			"idx": 44,
+			"version": "6",
+			"when": 1791600005000,
+			"tag": "0044_admin_audit",
+			"breakpoints": true
+		},
+		{
+			"idx": 45,
+			"version": "6",
+			"when": 1791600006000,
+			"tag": "0045_invoice_number_unique",
+			"breakpoints": true
+		},
+		{
+			"idx": 46,
+			"version": "6",
+			"when": 1791600007000,
+			"tag": "0046_b2g_cpv_softreject",
+			"breakpoints": true
+		}
+	]
+}

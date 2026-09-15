@@ -1,0 +1,81 @@
+{
+  "summary": "Frontend-only functional QA of /projects pagination and filters against real seeded fixtures, plus regression on /invoices and /customers hrefFor pagination callbacks. Seeded 55 QA54_ projects (14 active, 14 on_hold, 14 completed, 13 archived; createdAt spanning last 60 days; one long-unbreakable-name fixture) in demo org fa82eab8-... via SQLite. Verified pagination counts with real assertions, filter behaviour, clear behaviour, and horizontal overflow at desktop 1920x800 and mobile 390x844. Fixtures cleaned after run (final count QA54 rows = 0). Note: due to the broad scope of the review request, only /projects functional pagination + /invoices & /customers regression were fully executed; banking/employees/office-tasks/office-docs/office-fees fixture-based deep functional tests were NOT executed in this iteration.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "components/list/list-pagination.tsx",
+        "issue": "Prev/Next Link href is always built as `page: page - 1` / `page + 1` even when the button is disabled. On page 1 the prev href renders as `?page=0` (invalid); on the last page the next href renders as `page=pages+1` (e.g. observed /projects?pageSize=50&page=3 on last page where pages=2). Buttons are visually disabled via pointer-events-none/aria-disabled so users cannot click, but the href is still crawlable/tab-focus-followable in some AT/keyboard scenarios and produces an invalid URL.",
+        "selector": "[data-testid=page-prev], [data-testid=page-next]",
+        "priority": "LOW"
+      },
+      {
+        "component": "app/(app)/customers/page.tsx line 162",
+        "issue": "hrefFor callback passed to <ListPagination> reduces the patch to `{ page, pageSize }` and forwards empty strings for missing keys (`p.pageSize ? String(p.pageSize) : \"\"`). In linkFor the `...params` spread OVERRIDES the outer pageSize with `\"\"` and the `if (v)` guard then drops it. Consequence: clicking Prev/Next in /customers when pageSize != 25 will strip pageSize back to the default 25 — the exact bug called out in the review. Not reproducible against live data today (12 customers → single page) but the defect is present in source. Fix: only forward defined keys, e.g. `linkFor(Object.fromEntries(Object.entries(p).filter(([,v]) => v!==undefined).map(([k,v])=>[k,String(v)])))`.",
+        "selector": "hrefFor at customers/page.tsx:162",
+        "priority": "HIGH"
+      },
+      {
+        "component": "app/(app)/invoices/page.tsx",
+        "issue": "Out-of-range page numbers are NOT clamped — /invoices?pageSize=50&page=2 (only 33 invoices, so page 2 is empty) renders the generic \"Δεν βρέθηκαν παραστατικά\" empty-state without a ListPagination bar and without a way for the user to go back to page 1. /projects (in-memory paginate) correctly clamps page=999 to the last populated page. listInvoices in the invoices code path uses DB-side LIMIT/OFFSET and does not clamp.",
+        "selector": "/invoices?pageSize=50&page=2 → empty-state visible",
+        "priority": "MEDIUM"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "verified_working": [
+    "/projects default (pageSize=25) → rows=25, range='1–25 από 55 έργα' (expected 25/55)",
+    "/projects?page=2 → rows=25, range='26–50 από 55 έργα'",
+    "/projects?page=3 → rows=5,  range='51–55 από 55 έργα'",
+    "/projects?pageSize=50 → rows=50, range='1–50 από 55 έργα'",
+    "/projects?pageSize=200 → rows=55, range='1–55 από 55 έργα'  (confirms removal of any 200 cap for projects list)",
+    "/projects?page=999 → clamps to last page: rows=5, range='51–55 από 55 έργα' (no error)",
+    "/projects?pageSize=50 Next link href = /projects?pageSize=50&page=2 (pageSize preserved)",
+    "/projects?pageSize=50&page=2 Prev href = /projects?pageSize=50&page=1 (pageSize preserved)",
+    "/projects?status=active&pageSize=200 → 14 rows (DB has 14 active QA54 rows — exact match)",
+    "/projects?status=completed&pageSize=200 → 14 rows (DB match)",
+    "/projects?q=QA54_Project_03&pageSize=200 → 1 row (only fixture matching this substring)",
+    "/projects?from=2020-01-01&to=2020-01-02 → 0 rows (inclusive-date filter works, no fixtures in range)",
+    "/projects?q=QA54&status=active filter-clear href = /projects?pageSize=25 (drops q,status,from,to; keeps pageSize)",
+    "/invoices?pageSize=25 page-next href = /invoices?page=2 (pageSize=25 is default → omitted; correct)",
+    "/invoices?pageSize=25 page-size-50 href = /invoices?page=1&pageSize=50 (pageSize propagates)",
+    "/customers?pageSize=50&page=2 clamps to page 1 (range '1–12 από 12 πελάτες') — in-memory paginate handles clamp correctly (unlike /invoices)",
+    "No page-level horizontal overflow on /projects, /customers, /invoices at desktop 1920x800 and mobile 390x844"
+  ],
+  "not_tested": [
+    "Banking (IBAN spaced/unspaced, kind, inactive, total summary invariant) — fixtures not seeded",
+    "Employees (~26 fixtures, name/AFM/AMKA search, read-only no-CTA) — fixtures not seeded",
+    "Office tasks (~30, ?org= persistence, dueDate filter, authorized-org reset) — fixtures not seeded",
+    "Docs (~30, statuses closed/expired/every-uploaded, inclusive createdAt) — fixtures not seeded",
+    "Fees ~205 charges to prove removed 200 cap (?view=charges q/status=unpaid/chargeMonth, view-switch resets, page>200 accessibility) — fixtures not seeded",
+    "Task complete/reopen and fee mark-paid/unpaid mutation flows on isolated fixtures — not executed",
+    "Light + dark palette exact value verification (only globals.css SHA already verified in iter53 was reused implicitly)"
+  ],
+  "test_report_links": [
+    "/app/test_reports/iteration_54.json",
+    "/app/test_reports/iter54_projects_desktop.jpeg",
+    "/app/test_reports/iter54_projects_mobile.jpeg"
+  ],
+  "action_items": [
+    "Fix /customers hrefFor at customers/page.tsx:162 so page-prev / page-next preserve pageSize (HIGH — user-facing regression when pageSize is set).",
+    "Clamp out-of-range page in /invoices (invoices/page.tsx / listInvoices) to last populated page instead of showing generic empty-state. Match /projects behaviour.",
+    "In shared list-pagination.tsx, gate raw href computation with `page>1` / `page<pages` (or use `Math.max/Math.min`) so disabled prev/next don't render page=0 or page>pages URLs."
+  ],
+  "critical_code_review_comments": [
+    "customers/page.tsx line 162: `linkFor({ page: p.page ? String(p.page) : \"\", pageSize: p.pageSize ? String(p.pageSize) : \"\" })` breaks the ListPagination contract — it forwards explicit empty strings which then override the outer pageSize in the linkFor spread. This is the exact 'hrefFor callbacks clear pageSize on page navigation' issue the reviewer suspected.",
+    "list-pagination.tsx: use `hrefFor({ page: Math.max(1, page-1) })` and `hrefFor({ page: Math.min(pages, page+1) })` so disabled links still resolve to valid URLs (nice-to-have; button is already visually disabled).",
+    "invoices/page.tsx listInvoices uses DB LIMIT/OFFSET without clamping — inconsistent with in-memory paginate() used by /projects and /customers.",
+    "hrefWith in lib/list-params.ts correctly drops empty values but the callers must not spread patches with empty strings into it (see customers bug). Consider making hrefWith accept a filter callback so callers can't accidentally clobber preserved params.",
+    "Prev/next href is deterministic regardless of enabled state — okay because of pointer-events-none, but exposes invalid ?page=0 / ?page>pages URLs to search engines / a11y tools."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (skipped per request)", "frontend": "100% of executed /projects functional assertions passed (17/17). 2 regression defects identified in /customers (dormant) and /invoices (live) plus 1 cosmetic in shared list-pagination. Not-tested items above are unverified."},
+  "test_credentials": "demo@timologio.gr / demo1234 used for /projects, /invoices, /customers (business context). No credential changes.",
+  "seed_data_creation": "Seeded 55 rows into projects table with code prefix 'QA54-' inside demo org fa82eab8-... (statuses distributed 14/14/14/13, createdAt spanning ~60 days, one long-unbreakable-name row). All rows deleted at end of run (final QA54 count = 0). No other tables mutated.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Banking/Employees/Office-tasks/Docs/Fees fixture-based deep tests from the review request were NOT executed and need a dedicated iteration. Fixture recipe for projects is preserved in the iteration commentary — reuse for the other tables. Two real defects to retest after main-agent fix: (1) customers/page.tsx hrefFor drops pageSize on Prev/Next — seed 30+ QA54 customers in demo org, hit /customers?pageSize=50, click page-next and assert URL contains pageSize=50. (2) /invoices out-of-range page yields empty-state instead of clamping — reproduce with /invoices?pageSize=50&page=99 in demo org. Palette hash was NOT re-verified this run; if requested by main, sha256sum /app/frontend/src/app/globals.css should still equal 5016fde68189a2eddbece14ae5e48b37eb23a127d14514bf72a2516882b3682d.",
+  "rca_of_the_issue": "customers hrefFor bug RCA: ListPagination invokes hrefFor with a partial patch (only `page` on Prev/Next; only `pageSize`+`page` on page-size links). The customers callback wraps this and forwards missing keys as literal empty strings (\"\") into linkFor, whose outer merge sets pageSize to the current value but the trailing `...params` spread then overwrites it with \"\" and the `if (v) u.set(...)` drops empty values → pageSize disappears from the resulting URL. Repro (needs >25 customers): /customers?pageSize=50 → click Next → URL becomes /customers?page=2 (pageSize=50 lost). Mitigation: strip undefined-only keys before spreading, or invert precedence so explicit non-empty values win. Same anti-pattern is NOT present in /projects (uses hrefWith which naturally drops empty values from BOTH sides) — that's why /projects Prev/Next works."
+}

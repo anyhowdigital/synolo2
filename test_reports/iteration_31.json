@@ -1,0 +1,106 @@
+{
+  "summary": "Iteration 31 — code-level diagnostic (no live calls, no fixes). Ran 6 targeted invocations of actual production modules via tsx against typed fixtures. Confirms 6 real bugs from prior report and refutes one (computeRun DOES exclude active=false).",
+  "diagnostic_script": "/app/frontend/scripts/diagnostic_iter31.ts",
+  "actual_results": {
+    "1_normalizeStatus": {
+      "'not accepted'": "accepted (BUG — substring 'accept' matches first)",
+      "'unsuccessful'": "accepted (BUG — substring 'success' matches first)",
+      "'failed'": "rejected (correct)",
+      "source": "/app/frontend/src/lib/b2g/providers.ts:172-178 — regex order lets 'accepted' win before 'rejected'; word boundaries needed"
+    },
+    "2_validateB2G_cancelled_invoice": {
+      "input": "otherwise-valid invoice with status='cancelled' (not 'draft'), publicEntity customer, all B2G refs set",
+      "returned_errors": ["Το ΑΦΜ του φορέα δεν είναι έγκυρο."],
+      "verdict": "ALLOWED — validateB2G does NOT block cancelled/void invoices; only line 23 checks status==='draft'. AFM error above is a fixture artifact (099099099 fails checksum); the diagnostic point stands: NO 'cancelled' guard exists. BUG.",
+      "source": "/app/frontend/src/lib/services/b2g.ts:16-37"
+    },
+    "3_buildPeppolInvoiceXml_withholding_and_credit": {
+      "invoice_fixture": {"totalNet": 100, "totalVat": 24, "totalGross": 104, "withheld": 20},
+      "emitted": {
+        "LineExtensionAmount": "100.00",
+        "TaxExclusiveAmount": "100.00",
+        "TaxAmount": "24.00",
+        "TaxInclusiveAmount": "104.00",
+        "PayableAmount": "104.00",
+        "InvoiceTypeCode": "380"
+      },
+      "peppol_invariant_BR-CO-13": "TaxInclusive must equal TaxExclusive + TaxAmount → required 124.00, actual 104.00. Withholding is silently absorbed into TaxInclusive. BUG (PEPPOL validation will reject).",
+      "credit_note_root": {
+        "invoiceType": "5.1",
+        "root_element": "<Invoice ...>",
+        "type_code_emitted": "<cbc:InvoiceTypeCode>381</cbc:InvoiceTypeCode>",
+        "verdict": "BUG — UBL 2.1 requires root <CreditNote> with <cbc:CreditNoteTypeCode> and CreditNote-2 namespace. Emitting 381 inside <Invoice> is not valid PEPPOL BIS 3.0."
+      },
+      "source": "/app/frontend/src/lib/b2g/ubl.ts:172-223"
+    },
+    "4_athensIso_offset": {
+      "container_tz": "UTC",
+      "input_2026-01-15T10:00:00Z": "2026-01-15T12:00:00+00:00",
+      "input_2026-07-15T10:00:00Z": "2026-07-15T13:00:00+00:00",
+      "expected": "…+02:00 (winter) / …+03:00 (summer)",
+      "verdict": "BUG — wall-clock is correctly converted to Europe/Athens (12:00 / 13:00) but the offset suffix stays +00:00 because `off = -d.toLocaleString('en-US', {timeZone: 'Europe/Athens'}).getTimezoneOffset() + d.getTimezoneOffset()` evaluates to 0 when the container TZ is UTC. Result: ERGANI receives a timestamp claiming to be UTC but is actually Athens local time → 2-3 hour drift in every submission. Affects workCardPayload → E12 arrivals/departures.",
+      "source": "/app/frontend/src/lib/services/ergani-api.ts:30-35 (workCardPayload uses athensIso at line 163)"
+    },
+    "5_computeItem_and_computeRun_days_source": {
+      "computeItem_salaried_grossSalary_1200": {
+        "days=25": {"gross": 1200, "net": 955.57},
+        "days=1":  {"gross": 48,   "net": 41.58}
+      },
+      "verdict": "BUG (severe) — computeRun (payroll.ts:157) passes `days: overrides.days ?? (empShifts.length ? empShifts.length : undefined)` where empShifts is the COUNT of 'work'-kind shift rows for the month. For a salaried employee with only 1 recorded shift, gross drops from €1200 → €48. Monthly-salaried employees must be paid the full 25 ημερομίσθια regardless of shift count; only hourly/daily should follow shift count.",
+      "computeRun_active_filter": "CONFIRMED CORRECT — line 143: staff = listEmployees(...).filter(e => e.active && ...). Terminated employees with active=false ARE excluded. Prior iteration's suggestion here is refuted.",
+      "source": "/app/frontend/src/lib/services/payroll.ts:53-80, 143, 155-161"
+    },
+    "6_leaveAllowance_endDate_ignored": {
+      "hire_2026-01-01_no_endDate": {"qualifyingDays": 20, "gross": 600, "explain": "20 ημέρες άδειας × 48.00 € (όριο 600.00 €)"},
+      "hire_2026-01-01_endDate_2026-01-31": {"qualifyingDays": 20, "gross": 600, "explain": "20 ημέρες άδειας × 48.00 € (όριο 600.00 €)"},
+      "verdict": "BUG — outputs are IDENTICAL. `leaveAllowance` (bonuses.ts:93) calls `leaveDays(emp, year)` which only reads `emp.hireDate` and `year`; `emp.endDate` is never consulted. An employee that worked 1 day of the year receives the same €600 leave allowance as one who worked all 12 months (subject to grossSalary/2 cap). Note: same-calendar-year hire is correctly prorated to 20 days by leaveDays (hireYear===year, 12 months employed → 20). Prior claim that 'ALL January leavers require prorating in the third calendar year' is NOT verified here and is outside this diagnostic's scope.",
+      "source": "/app/frontend/src/lib/services/bonuses.ts:39-51, 93-100 (contrast with christmasBonus/easterBonus which correctly use daysWithin including emp.endDate)"
+    }
+  },
+  "backend_issues": {
+    "critical": [
+      {"endpoint": "normalizeStatus", "issue": "'not accepted' → 'accepted', 'unsuccessful' → 'accepted' (regex substring matching, wrong precedence)", "priority": "HIGH"},
+      {"endpoint": "buildPeppolInvoiceXml", "issue": "Violates PEPPOL BR-CO-13 when withholding present: TaxExclusive+TaxAmount ≠ TaxInclusive (100+24 ≠ 104)", "priority": "CRITICAL"},
+      {"endpoint": "buildPeppolInvoiceXml", "issue": "Credit notes emit root <Invoice> with InvoiceTypeCode 381 instead of <CreditNote> + CreditNoteTypeCode + CreditNote-2 namespace", "priority": "CRITICAL"},
+      {"endpoint": "computeRun (payroll.ts:157)", "issue": "Uses shift-row COUNT as `days` for salaried monthly employees — a salaried employee with 1 shift row is paid 1/25 of gross salary", "priority": "CRITICAL"},
+      {"endpoint": "athensIso (ergani-api.ts:30)", "issue": "Offset suffix is derived from container TZ, not Europe/Athens; in UTC container emits '+00:00' while the wall-clock is Athens local → 2-3h timestamp drift in ERGANI E12 submissions", "priority": "HIGH"},
+      {"endpoint": "leaveAllowance (bonuses.ts:93)", "issue": "Ignores emp.endDate entirely — terminated employees get full-year allowance", "priority": "HIGH"}
+    ],
+    "minor": [
+      {"endpoint": "validateB2G", "issue": "No guard against status='cancelled'/'void' — only 'draft' is rejected. Cancelled invoices can be submitted to Δημόσιο."}
+    ]
+  },
+  "refutations_of_prior_report": [
+    "computeRun DOES filter `e.active` (payroll.ts:143). Terminated employees (active=false) are excluded. Prior claim that 'terminated employees are still paid' is INCORRECT.",
+    "'All January leavers require prorating in third calendar year' — NOT proven by any calculation in this run; under Greek labor rules the third calendar year can grant full 22-day entitlement. Prior blanket assertion was overbroad. The actual bug is narrower: endDate is ignored in leaveAllowance."
+  ],
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "screenshots_from_iteration30": "Not accessed. Iteration 30 report at /app/test_reports/iteration_30.json; any PDF/screenshot artifacts from that run were not regenerated per scope.",
+  "test_report_links": ["/app/frontend/scripts/diagnostic_iter31.ts"],
+  "action_items": [
+    "Fix normalizeStatus: use word-boundary regex and check reject/error patterns BEFORE accept patterns; explicit map of known provider strings is safer.",
+    "Fix buildPeppolInvoiceXml withholding: emit <cac:WithholdingTaxTotal> (BT-88 category) and ensure TaxInclusive = TaxExclusive + TaxAmount = 124; keep PayableAmount = 104 for the net-payable.",
+    "Fix buildPeppolInvoiceXml credit note: switch root to <CreditNote xmlns='...CreditNote-2'>, emit <cbc:CreditNoteTypeCode>, and swap billed-quantity element name.",
+    "Fix computeRun days source: for salaried employees (emp.grossSalary > 0) use the standard 25 days unless explicitly overridden; only use empShifts.length for hourly/daily employees.",
+    "Fix athensIso: compute the Athens offset from the same formatted parts (or from a fixed table: +02:00 winter / +03:00 summer via Intl formatToParts with timeZoneName). Do not use container's getTimezoneOffset().",
+    "Fix leaveAllowance: prorate qualifyingDays by daysWithin({hire..endDate}) / days-in-year, similar to christmasBonus/easterBonus.",
+    "Add validateB2G guard: reject invoice.status in ('cancelled','void')."
+  ],
+  "critical_code_review_comments": [
+    "b2g/ubl.ts:174 — root element is hardcoded to <Invoice> regardless of doctype; violates UBL 2.1 spec for credit notes.",
+    "b2g/ubl.ts:215-220 — LegalMonetaryTotal does not model withholding; use only totalGrossValue for PayableAmount and use net+VAT for TaxInclusiveAmount.",
+    "b2g/providers.ts:172-178 — status normalization order is wrong (accept regex is too greedy and precedes reject); no test coverage.",
+    "services/payroll.ts:157 — coupling of shift-count to salaried gross calculation; needs contract-type branch.",
+    "services/ergani-api.ts:30-35 — athensIso is not portable across container timezones; also duplicated logic that should live in a shared helper.",
+    "services/bonuses.ts:93-100 — leaveAllowance does not follow the same daysWithin pattern as easterBonus/christmasBonus; inconsistent proration semantics.",
+    "services/b2g.ts:16-37 — no lifecycle-status guard for cancelled/void."
+  ],
+  "updated_files": ["/app/frontend/scripts/diagnostic_iter31.ts (new, diagnostic only, no app modifications)"],
+  "success_rate": {"backend": "diagnostic-only (6/6 targeted calls executed and captured)", "frontend": "not tested (out of scope)"},
+  "test_credentials": "not needed (no live/DB calls)",
+  "seed_data_creation": "none",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Diagnostic script /app/frontend/scripts/diagnostic_iter31.ts runs via `cd /app/frontend && ./node_modules/.bin/tsx --tsconfig tsconfig.json scripts/diagnostic_iter31.ts` in ~1s. Re-run after each fix. Note athensIso is duplicated inside the script — reason: it is not exported from ergani-api; if refactored to export, switch import to `@/lib/services/ergani-api`.",
+  "rca_of_the_issues": "See action_items for per-bug fix strategy; each entry is grounded in a captured output above."
+}

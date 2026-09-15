@@ -1,0 +1,47 @@
+{
+  "summary": "Retest iteration for iteration_27 blockers. The 'use server' fix in /app/frontend/src/app/actions/staff.ts was verified — STAFF_COOKIE is now a plain (non-exported) module-scoped const, no Build Error overlay anywhere. All previously blocked flows now pass: (1) Staff self-service portal end-to-end — /staff/[token] renders staff-portal + staff-name, wrong PIN shows 'Λάθος PIN.' toast, correct PIN reveals staff-clock-card/staff-payslips/staff-shifts, staff-clock-in and staff-clock-out succeed with success/hours toasts, staff-logout returns to PIN form, payslip PDF returns 200 application/pdf with cookie and 401 text/plain without cookie, staff-access-rotate issues new url+PIN and old rotated token → 404. (2) ERGANI page — ergani-credentials-card starts 'Μη ρυθμισμένο' with submit buttons disabled; after ergani-save-credentials (username=testuser, password=secret, mode=trial) badge shows 'Δοκιμαστικό' and submit-bar (E12/E4/E3/E8) + ergani-test-connection become enabled; test-connection surfaces the expected 404 error toast; ergani-submit-E4 creates an 'Απέτυχε' row in ergani-submissions-table; re-saving with empty password succeeds ('Τα διαπιστευτήρια ΕΡΓΑΝΗ αποθηκεύτηκαν.') with no error. (3) Bonus xmas bonus-post produces 'Καταχωρημένο' badge; easter compute after 2026-09 hires shows the expected info toast 'Δεν υπάρχουν εργαζόμενοι με απασχόληση στην περίοδο.' and empty state. (4) Regression: /login, /office and payroll page render without Build Error overlay.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "Bonus xmas recompute after post",
+        "issue": "After bonus-post (Καταχωρημένο badge appears correctly), clicking bonus-compute again did not surface any visible toast in the DOM within 2.5s. The action does not appear to break state, but the spec expects an error toast informing the user that the run is locked/posted. Low severity — could be a race with toast auto-dismiss or a silent no-op. Please verify manually.",
+        "affected_selectors": ["[data-testid=\"bonus-compute\"]"]
+      }
+    ],
+    "design_issues": []
+  },
+  "verified_ok": [
+    "Regression: /login, /office and /office/clients/<org>/payroll?month=2026-09 render with NO Build Error overlay. Fix for staff.ts 'use server' is effective.",
+    "Staff portal: /staff/<token> renders staff-portal, staff-name = 'IBANFirst IBANLast'. Wrong PIN → 'Λάθος PIN.' error toast. Correct PIN → staff-clock-card, staff-payslips, staff-shifts, staff-clock-in, staff-clock-out, staff-logout all render.",
+    "staff-clock-in → toast contains 'άφιξη … καταχωρήθηκε'. staff-clock-out → toast contains 'Αναχώρηση HH:MM · Xω X′'.",
+    "Payslip link (Παπαδόπουλος token) GET /api/staff/<token>/payslip?period=2026-EA → WITH staff cookie: 200 application/pdf 22 KB. WITHOUT cookie (fresh browser context): 401 text/plain.",
+    "staff-logout → back to PIN form (no staff-clock-card).",
+    "staff-access-rotate produced new url + new PIN (1926 → 8900 etc.); old rotated token → HTTP 404 both via API and browser.",
+    "ERGANI: initial ergani-credentials-card shows 'Μη ρυθμισμένο'; submit-E12/E4/E3/E8 + ergani-test-connection all disabled=True.",
+    "After ergani-save-credentials with trial mode: toast 'Τα διαπιστευτήρια ΕΡΓΑΝΗ αποθηκεύτηκαν.', badge 'Δοκιμαστικό' appears, all submit buttons + test-connection become enabled.",
+    "ergani-test-connection surfaces expected error toast 'ΕΡΓΑΝΗ Authentication 404: The resource you are looking for has been removed…' (mock endpoint failure, no crash).",
+    "ergani-submit-E4 → creates row in ergani-submissions-table with 'Απέτυχε' badge + full 404 response body preserved as Αρ. πρωτ./Απάντηση.",
+    "Re-saving credentials with empty password succeeds (existing password preserved, no error toast).",
+    "Bonus xmas already had 2 rows from previous iteration; bonus-post → 'Καταχωρημένο' badge visible in bonus-panel.",
+    "Bonus easter compute with only 2026-09 hires: info toast 'Δεν υπάρχουν εργαζόμενοι με απασχόληση στην περίοδο.' + empty-state message rendered (expected)."
+  ],
+  "test_report_links": [],
+  "action_items": [
+    "LOW/optional: Verify that clicking bonus-compute on an already-posted xmas run surfaces the expected 'run is locked' toast — none was captured in the retest. Not blocking."
+  ],
+  "critical_code_review_comments": [
+    "staff.ts fix is minimal and correct: STAFF_COOKIE is a module-scoped const, no longer exported, so the 'use server' constraint (async function exports only) is satisfied. Consider adding an ESLint rule (react-hooks/exhaustive-deps or a custom lint) to catch non-async exports in 'use server' files at commit time, since this bug re-emerged multiple iterations.",
+    "SEPA endpoint still returns text/plain 400 error strings and PDF/XML endpoints navigate the browser away on error. Consider converting anchor downloads to fetch+blob so failures can be surfaced as toasts (repeat feedback from iteration_26/27).",
+    "The 'Επιδομα αδείας' and 'Δώρο Πάσχα' bonus panels still do not render bonus-payslip-<empId> links (iteration_27 finding). Only xmas branch has the anchor. Extract a shared BonusPayslipLink component to avoid this per-kind divergence."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (frontend-only)", "frontend": "~98% — all blocked iteration_27 flows now pass; only nit is missing toast on post-run recompute"},
+  "test_credentials": "office@koletsas.gr / office1234",
+  "seed_data_creation": "Added an ERGANI submission row for org fa82eab8-… month 2026-09 (E4 πίνακας προσωπικού, status Απέτυχε). Added a couple of same-second clock-in/clock-out shifts for IBANLast on 2026-09-13 (visible in ERGANI shift table). Xmas bonus for 2026 is now POSTED (Καταχωρημένο). staff-access token rotated for IBANLast and Παπαδόπουλος (main agent must click staff-access-<id> to view current url/PIN).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Iteration_27 blockers are resolved. Xmas 2026 bonus is now posted for org fa82eab8-…; a subsequent 'recompute after post' toast was not observed but no state corruption occurred. ERGANI 2026-09 has one Απέτυχε E4 row seeded. Staff portal PIN/URLs valid at moment of test: (IBANLast) https://cashflow-pro-295.preview.emergentagent.com/staff/Yn3pCDWck5BRdvZZYZ4QE9B4wwlo0EE3 PIN 1926 (may be re-rotated) and (Παπαδόπουλος) OcBPYRSAtxLWpr7VN3mKK4hws1NtkorV PIN 8900. Prior iteration_27 outstanding item (bonus-payslip links for easter/leave) NOT retested here — still open per that report.",
+  "rca_of_the_issue": "Iteration_27 root cause: 'use server' file had a non-async const export → Turbopack build error poisoned dev module graph. Fix applied by main agent: removed the `export` keyword from STAFF_COOKIE (kept as private module const at line 9). Verified in /app/frontend/src/app/actions/staff.ts: line 9 is now `const STAFF_COOKIE = \"staff_portal\";` (no export). All downstream imports (staff/[token]/page.tsx, staff-widgets.tsx) continue to work because they only need the async server actions (staffSession, staffLoginAction, staffLogoutAction, staffClockAction) which remain exported and async."
+}

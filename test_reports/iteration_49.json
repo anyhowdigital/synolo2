@@ -1,0 +1,42 @@
+{
+  "summary": "E2E write tests on demo tenant (fa82eab8...): invoice, POS, CSV import, bridge import (unified engine), expense. Bridge unified engine VERIFIED: (a) expenses import through /settings?tab=bridge with Generic provider + entity Έξοδα creates row in /expenses (QA-ΑΛΦΑ 1.234,56 €), batch appears in data-testid=bridge-recent-imports with correct 'expenses · 1 νέες' label, re-import same file returns toast 'Εισαγωγή: 0 νέες, 1 ενημερώσεις' (dedup works, no duplicate in /expenses), bridge-undo-<id> removes the expense; (b) entity Πελάτες import (bridge_customers.csv) creates QA-Bridge Cust in /customers, undo removes it. Customer CSV import via /customers → 'Εισαγωγή CSV' works (2 γραμμές · 2 νέες, undo removes both). Invoice via /invoices/new: with Oct 15 2026 issue date the draft saves (URL becomes /invoices/<id>), Έκδοση → 'Έκδοση τώρα' issues invoice ΤΠ-0010, status 'Εκδοθέν', PDF endpoint /api/invoices/<id>/pdf returns 200 application/pdf (30182 bytes), Διαβίβαση button opens myDATA confirmation dialog (mock mode). Live totals for 2×100@24% + 1×50@13% show correctly: Καθαρή 250,00 / ΦΠΑ 24% 48,00 / ΦΠΑ 13% 6,50 / Σύνολο ΦΠΑ 54,50 / Πληρωτέο 304,50. POS: 3 items in cart (2×65+1×350=480 net @24% = 115,20 VAT, 595,20 total), Μετρητά selected, Έκδοση 595,20 € issues receipt (ΑΠΥ visible in /invoices?kind=receipt).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "invoice-editor (/invoices/new)", "issue": "Save-as-draft AND Έκδοση buttons silently do nothing when the selected issue date falls in a locked period (default is today = 15/09/2026 which is locked). The right-sidebar shows an amber notice 'Η περίοδος 2026-09 είναι κλειδωμένη...' but the buttons appear enabled and clicking them produces no toast, no navigation, and no inline validation. The user has no clue why saving fails until they read the sidebar notice. Changing the date to 15/10/2026 makes save/issue work as expected.", "selector": "[data-testid=invoice-editor-save-draft], [data-testid=invoice-editor-issue]", "priority": "HIGH"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/invoices/new", "issues": ["No data-testid on the per-line VAT category combobox (button[role=combobox] with '24%'/'13%' options). Adding data-testid=invoice-field-lines.N.vatCategory would allow automated regression tests to verify VAT changes on lines."]}
+    ]
+  },
+  "verified_working": [
+    "Login demo@timologio.gr → dashboard on public host",
+    "Customers CSV import (Εισαγωγή CSV, data-testid=import-open-customers): 2 rows, 2 new, undo (import-undo-last) removes both",
+    "Bridge Εισαγωγή (settings?tab=bridge, Generic provider, entity Έξοδα): imports QA-ΑΛΦΑ 1.234,56 €, listed in bridge-recent-imports; re-import same file → 0 new / 1 update (dedup), /expenses count of 'QA-ΑΛΦΑ' stays constant; bridge-undo-<batchId> removes the expense",
+    "Bridge Εισαγωγή Πελάτες: creates QA-Bridge Cust in /customers, undo removes it",
+    "Invoice editor live totals for mixed VAT 24%+13%: Net 250,00 / VAT 24% 48,00 / VAT 13% 6,50 / Total VAT 54,50 / Payable 304,50",
+    "Invoice draft save (Oct issue date): navigates to /invoices/<id> with status 'Πρόχειρο'",
+    "Invoice issue → confirmation dialog 'Έκδοση τώρα' → status 'Εκδοθέν', number 'ΤΠ-0010' assigned",
+    "PDF endpoint /api/invoices/<id>/pdf: HTTP 200, content-type application/pdf, ~30KB body",
+    "myDATA Διαβίβαση dialog opens on issued invoice (mock mode, mock MARK generation)",
+    "POS: 13 product tiles, cart math correct (480 net, 115,20 VAT, 595,20 gross), Μετρητά payment, Έκδοση issues an ΑΠΥ receipt that appears in /invoices?kind=receipt"
+  ],
+  "test_report_links": [],
+  "action_items": [
+    "invoice-editor: when the chosen issue date lies in a locked accounting period, either (a) disable the save-draft and issue buttons with a tooltip pointing to 'Αναφορές → Μηνιαίο κλείσιμο', or (b) show a destructive toast on click ('Η περίοδος 2026-09 είναι κλειδωμένη — αλλάξτε ημερομηνία ή ξεκλειδώστε την περίοδο'). Currently the click is a no-op which looks like a broken app.",
+    "Add data-testid to invoice line VAT category combobox (e.g., invoice-field-lines.N.vatCategory) for regression coverage.",
+    "Optional: add explicit data-testid on Καταχώρηση τιμολογίου αγοράς dialog fields (supplier, AFM, netAmount, vatCategory) for manual expense entry regression."
+  ],
+  "critical_code_review_comments": [
+    "invoice-editor.tsx should validate the issue date against locked periods client-side (or server action should return a structured error surfaced via toast) — right now the server action silently rejects and the button re-enables without feedback.",
+    "Unified import engine (lib/import/engine.ts) confirmed correctly shared between /customers 'Εισαγωγή CSV' (import-batches + import-undo-last) and /settings?tab=bridge 'Εισαγωγή' (bridge-recent-imports + bridge-undo-<id>); dedup by AFM+series+number on expenses works as expected (0 new / 1 update on re-import)."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (E2E)", "frontend": "~92% (all write flows succeed once the period-lock UX gotcha is worked around; PDF, myDATA mock, unified import engine, dedup, and undo all verified)"},
+  "test_credentials": "demo@timologio.gr / demo1234 (owner of demo org fa82eab8-ce41-4d73-8a3f-05a0f63f1002)",
+  "seed_data_creation": "Left over on demo org (issued, cannot be deleted): 1 sales invoice ΤΠ-0010 (Logistics Hellas Μ.ΙΚΕ, 304,50 €, 15/10/2026, status Εκδοθέν, myDATA 'Μη διαβιβασμένο'); at least 1 POS receipt issued during POS test (2×65 + 1×350 = 595,20 €). All CSV import (customers) and bridge import (expenses, customers) records were undone via the unified engine's undo action. No draft invoices left behind.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Unified import engine is confirmed working end-to-end via UI: /customers Εισαγωγή CSV and /settings?tab=bridge share import_batches and both undo work. Dedup on expenses re-import verified. The only functional-feeling bug is the invoice editor being a silent no-op when the issue date sits in a locked period — this affects the default 'today' date on the demo tenant because period 2026-09 is closed. To reproduce: /invoices/new with default date → fill lines → click Αποθήκευση ως πρόχειρο; nothing happens (URL stays /invoices/new). Change issueDate to 2026-10-15 and save works. Also note: PDF endpoint is /api/invoices/<id>/pdf; myDATA is mock. Do not delete ΤΠ-0010."
+}

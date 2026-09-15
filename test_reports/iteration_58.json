@@ -1,0 +1,36 @@
+{
+  "summary": "Iter58 NARROW final targeted /office/clients tab interaction verification after TabsList class fix ('h-auto max-w-full flex-wrap justify-start gap-1 group-data-horizontal/tabs:h-auto'). Both mobile 390x844 and desktop 1920x800 pass with real click evidence — no source changes. Login required hydration wait (~2s + wait for enabled auth-submit-button) before first fill; once done, /office/clients hydrated and all three tabs (tab-code, tab-afm, tab-how) switch on mouse click with correct panels visible AND keyboard ArrowRight navigation works. Real event handlers proven by typing '123456' into link-code-input enabling link-code-submit (disabled attr=None) and clearing to '' disabling it again. No submit executed, no code/AFM request sent, no credentials/links/settings mutated.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "verified_working": [
+    "MOBILE 390x844: tablist rect {top:283,left:16,right:374,bottom:345,h:62,w:358} — height=62 (2 rows), flex-wrap active as expected; content top=353 → spill=0; document.querySelectorAll('*') horizontal overflow violators=0",
+    "MOBILE tabs rects: tab-code(19..193,y286-312), tab-afm(197..371,y286-312) share top row; tab-how(19..371,y316-342) wraps to second row — 4px vertical gap-1 between rows, no overlap into panel (content top=353 > tab-how bottom 342)",
+    "MOBILE mouse click tab-how → data-state=active AND [data-testid=how-to-link] visible=True (proves handler + panel switch)",
+    "MOBILE mouse click tab-afm → data-state=active AND [data-testid=link-afm-input] visible=True",
+    "MOBILE mouse click tab-code → data-state=active AND [data-testid=link-code-input] visible=True",
+    "MOBILE React event handlers ready: fill link-code-input='123456' → link-code-submit disabled=None (enabled); fill='' → disabled attribute present (correctly re-disabled). NO submit clicked.",
+    "MOBILE keyboard: focus tab-code → ArrowRight → tab-afm data-state=active (Radix roving-tabindex works)",
+    "DESKTOP 1920x800: tablist rect {top:175,left:464,right:925,bottom:207,h:32,w:461} — single row h=32 as intended; content top=215 → spill=0; all three tabs in one horizontal row (tab-code w=148, tab-afm w=121, tab-how w=178)",
+    "DESKTOP mouse click tab-how/tab-afm/tab-code → each data-state=active AND respective panel testid visible=True",
+    "Screenshots captured: /app/test_reports/iter58_office_clients_mobile.jpeg (Path.exists=True) and /app/test_reports/iter58_office_clients_desktop.jpeg (Path.exists=True)"
+  ],
+  "test_report_links": [
+    "/app/test_reports/iter58_office_clients_mobile.jpeg",
+    "/app/test_reports/iter58_office_clients_desktop.jpeg"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "TabsList class 'h-auto max-w-full flex-wrap justify-start gap-1 group-data-horizontal/tabs:h-auto' at /app/frontend/src/components/office/client-link-panel.tsx:115 correctly overrides the default 'group-data-horizontal/tabs:h-8' from tabs.tsx tabsListVariants (line 28) — 'group-data-horizontal/tabs:h-auto' wins by cn/tailwind-merge and 'h-auto' as base allows the flex-wrapped row to grow. Verified live: mobile h=62 (2 rows), desktop h=32 (1 row) — fix works exactly as intended.",
+    "Radix Tabs Root in tabs.tsx has data-orientation='horizontal' → 'group-data-horizontal/tabs' modifier is active; the override chain is clean. No stale h-8 seen at either viewport.",
+    "TabsTrigger uses h-[calc(100%-1px)] which becomes 25px at h-8 default and would still work if row height changes; verified all three triggers render at h=26 at both viewports.",
+    "Initial iter58 mobile login flakiness: form submission was lost when fill occurred before React hydration completed. This is a test-harness timing issue, NOT an app defect — remediated by waiting for 'auth-submit-button:not([disabled])' + 2s hydration timeout before fill (documented for next agent). Handler on client-link-panel.tsx works instantly after DOM hydrates."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (skipped per request)", "frontend": "11/11 assertions passed (100%). No new defects."},
+  "test_credentials": "office@koletsas.gr / office1234 (login only, no mutations). No credential/settings changes.",
+  "seed_data_creation": "NONE. Used existing office org data only. link-code-input '123456' typed then CLEARED, submit NEVER clicked.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iter58 closes the /office/clients tab interaction question definitively. Prior iter56/57 'presence-only' pass is now backed by real mouse+keyboard clicks with data-state=active verified AND panel data-testids visible after each click. Mobile tablist wraps to 2 rows (h=62) with tab-how alone on row 2; desktop stays single row (h=32). React handlers proven ready (link-code-submit enable/disable on input). Iter55 mobile screenshot main-agent finding (height 62, spill 0, panelOverlap false) is fully corroborated with additional real-event verification. If future agents test again: MUST wait for React hydration (~2s + wait for enabled submit button) before filling login form on mobile viewport — direct fill immediately after networkidle can lose values (form gets reset by client-side hydration). No source changes required; palette sha unchanged per main.",
+  "rca_of_the_issue": "N/A — no defect. Prior 'tab-how failed to activate immediately after domcontentloaded' was a test-timing artifact (React not yet hydrated at click). With proper wait-for-hydration + wait-for-selector on tab triggers, all three tabs switch reliably via mouse AND keyboard at both 390x844 and 1920x800. TabsList height override fix (h-auto + group-data-horizontal/tabs:h-auto) works exactly as intended."
+}

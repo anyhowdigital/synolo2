@@ -1,0 +1,64 @@
+{
+  "summary": "All fixes from iteration_18 verified end-to-end. saveAadeCredentials now preserves the stored password when the Password input is left empty (bug fixed). With test credentials set the /api/afm/lookup call reaches the real ΑΑΔΕ RgWsPublic2 endpoint and returns a clear Greek authentication error in JSON (source:'aade', HTTP 200) — never demo, never HTML, never 404. Demo fallback (no credentials) works for both hardcoded and unknown-but-valid AFMs and includes the Greek 'notice' field on both branches. Customer form and Δοκιμή σύνδεσης toasts propagate the real ΑΑΔΕ error verbatim. Settings tab reorganisation intact. Regression pages OK. Credentials wiped at end as requested.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "afm/lookup/route.ts", "issue": "orgId is still accepted from the request body without checking it belongs to the caller's session — cross-org info leak / quota-exhaustion vector (already noted in iteration_18 code review, unchanged)."},
+      {"endpoint": "afm/lookup/route.ts", "issue": "deactivation_flag interpretation is inverted: active is set to (deactivation === '1') which marks DEACTIVATED companies as active. Should be (deactivation !== '1'). Only matters once real ΑΑΔΕ replies with data."},
+      {"endpoint": "afm/lookup/route.ts", "issue": "SOAP fault parsing uses regex [^<]* that cannot cross nested tags; complex RgWsPublic2 faults nested under <ns2:call_information> may parse to empty string. In our test the fault surfaced correctly via <env:Reason><env:Text>, so this is latent."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "Settings → Δοκιμή σύνδεσης with no credentials saved", "issue": "Button is DISABLED when username/password are empty in DB. The review request asked for an explicit message ('call returned δοκιμαστικά δεδομένα και ζητά credentials'). Disabling is arguably good UX but does not match the spec verbatim — no visible tooltip/aria-label explaining why it is disabled either.", "affected_selectors": ["button:has-text('Δοκιμή σύνδεσης')"]}
+    ],
+    "design_issues": []
+  },
+  "verified_fixes": [
+    "STEP 1 — save (testuser1, testpass1) → SQLite: aade_rg_username='testuser1', aade_rg_password='testpass1'.",
+    "STEP 2 — change username to 'testuser2', LEAVE password EMPTY → SQLite: aade_rg_username='testuser2', aade_rg_password='testpass1' (PRESERVED — bug from iteration_18 is FIXED).",
+    "STEP 3 — set password 'testpass2' → SQLite: 'testuser2|testpass2' (update path works).",
+    "STEP 4 — clear BOTH fields → SQLite: '|' (empty, explicit clearing still works — password is cleared only when username is also cleared, per conditional patch).",
+    "POST /api/afm/lookup {afm:'094019245'} with creds present (testuser2/testpass2) via authenticated page context → HTTP 200 application/json {\"ok\":false,\"source\":\"aade\",\"error\":\"Ο συνδυασμός χρήστη/κωδικού πρόσβασης που δόθηκε δεν είναι έγκυρος.\"} — REAL ΑΑΔΕ fault, no demo, no HTML.",
+    "/customers/new + ΑΦΜ 094019245 + Αναζήτηση with creds → toast 'Ο συνδυασμός χρήστη/κωδικού πρόσβασης που δόθηκε δεν είναι έγκυρος.' (real ΑΑΔΕ error, NOT the yellow demo warning).",
+    "Δοκιμή σύνδεσης with creds → toast 'Ο συνδυασμός χρήστη/κωδικού πρόσβασης που δόθηκε δεν είναι έγκυρος.'",
+    "POST /api/afm/lookup {afm:'094019245'} with NO creds → HTTP 200 {ok:true, source:'demo', data:{…, notice:'Δοκιμαστικό αποτέλεσμα. Καταχωρίστε διαπιστευτήρια ΑΑΔΕ στις Ρυθμίσεις → Αναζήτηση ΑΦΜ (ΑΑΔΕ) για πραγματικά στοιχεία μητρώου.'}} — notice IS now present on the hardcoded-AFM branch (iteration_18 minor item fixed).",
+    "POST /api/afm/lookup {afm:'123456783'} (valid modulo-11, NOT in DEMO_DB, no creds) → {ok:true, source:'demo', …, notice: <same Greek notice>}.",
+    "/customers/new + ΑΦΜ 094019245 with NO creds → yellow warning toast 'Συμπληρώθηκε με δοκιμαστικά δεδομένα: ΟΤΕ Α.Ε.' + 'Δεν έχουν καταχωριστεί διαπιστευτήρια ΑΑΔΕ. Ρυθμίσεις → Αναζήτηση ΑΦΜ (ΑΑΔΕ).'",
+    "Regression: /dashboard, /invoices, /deadlines, /reports/withholding → HTTP 200. Customer save flow OK (used 094149814 → ΔΕΗ Α.Ε. auto-fill demo). Settings tab reorganisation from iteration_18 still intact (aade tab has ONLY credentials card)."
+  ],
+  "raw_lookup_bodies_captured": {
+    "with_creds_afm_094019245": "{\"ok\":false,\"source\":\"aade\",\"error\":\"Ο συνδυασμός χρήστη/κωδικού πρόσβασης που δόθηκε δεν είναι έγκυρος.\"}",
+    "no_creds_afm_094019245_hardcoded": "{\"ok\":true,\"source\":\"demo\",\"data\":{\"afm\":\"094019245\",\"name\":\"ΟΤΕ Α.Ε.\",…,\"notice\":\"Δοκιμαστικό αποτέλεσμα. Καταχωρίστε διαπιστευτήρια ΑΑΔΕ στις Ρυθμίσεις → Αναζήτηση ΑΦΜ (ΑΑΔΕ) για πραγματικά στοιχεία μητρώου.\"}}",
+    "no_creds_afm_123456783_unknown_valid": "{\"ok\":true,\"source\":\"demo\",\"data\":{\"afm\":\"123456783\",\"name\":\"Επιχείρηση 123456783\",…,\"notice\":\"Δοκιμαστικό αποτέλεσμα. …\"}}",
+    "customers_new_toast_with_creds": "Ο συνδυασμός χρήστη/κωδικού πρόσβασης που δόθηκε δεν είναι έγκυρος.",
+    "customers_new_toast_no_creds": "Συμπληρώθηκε με δοκιμαστικά δεδομένα: ΟΤΕ Α.Ε. Δεν έχουν καταχωριστεί διαπιστευτήρια ΑΑΔΕ. Ρυθμίσεις → Αναζήτηση ΑΦΜ (ΑΑΔΕ).",
+    "test_connection_toast_with_creds": "Ο συνδυασμός χρήστη/κωδικού πρόσβασης που δόθηκε δεν είναι έγκυρος.",
+    "test_connection_toast_no_creds": "Button DISABLED (no toast fires). No tooltip/aria-label explaining disabled state."
+  },
+  "final_db_state": "SELECT id, aade_rg_username, aade_rg_password FROM organizations WHERE id='fa82eab8-ce41-4d73-8a3f-05a0f63f1002' → ('fa82eab8-…', '', '') — BOTH FIELDS EMPTY as requested. The user MUST re-enter their real ΑΑΔΕ username and password in /settings?tab=aade before the app can query the real registry. This is because the earlier password-wipe bug (iteration_18) had already lost their password; the tester deliberately cleared both fields at the end of round 2 so the user can enter fresh values without any stale username lingering.",
+  "test_report_links": [],
+  "action_items": [
+    "USER-FACING: In /settings?tab=aade re-enter the real ΑΑΔΕ username AND password. The password had been wiped by the pre-fix version of saveAadeCredentials; the fix is now in place, so a second save with a blank password will preserve it going forward.",
+    "(MEDIUM) Add authorisation check for body.orgId in POST /api/afm/lookup — either ignore it entirely and always use getCurrentOrg(db), or assert orgId === session.orgId. Same input vector is used by testAadeCredentials server action.",
+    "(LOW) Fix deactivation_flag logic: active should be (deactivation !== '1').",
+    "(LOW) Consider replacing the disabled 'Δοκιμή σύνδεσης' button with an enabled one that fires a toast 'Δεν έχετε αποθηκεύσει διαπιστευτήρια — αποθηκεύστε πρώτα username/password.' to match the review spec, OR add a title/tooltip explaining the disabled state.",
+    "(LOW) Replace hand-rolled regex SOAP parsing with fast-xml-parser to avoid the empty-fault edge case for nested <ns2:call_information> errors."
+  ],
+  "critical_code_review_comments": [
+    "saveAadeCredentials now uses a conditional patch — correct and matches UI placeholder «κενό = διατήρηση». Explicit clearing is triggered only when BOTH fields are empty, which is a sensible convention but should ideally be surfaced in UI copy (e.g. 'Καθαρίζει μόνο όταν αδειάζετε και τα δύο πεδία').",
+    "afm/lookup/route.ts still trusts body.orgId — HIGH-value info-leak / abuse vector remains.",
+    "afm/lookup/route.ts deactivation_flag logic still inverted.",
+    "afm/lookup/route.ts — SOAP fault regex is fine for env:Text but fragile for RgWsPublic2 nested error_descr; low priority.",
+    "aade-credentials-form.tsx — 'Δοκιμή σύνδεσης' disabled state has no tooltip; users may not know why it is greyed out."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (all lookup / save flows behave per spec)", "frontend": "95% (Δοκιμή σύνδεσης shows no message when disabled with empty creds — cosmetic mismatch with spec)"},
+  "test_credentials": "demo@timologio.gr / demo1234 (owner). ΑΑΔΕ credentials in DB deliberately cleared at end of run — user must re-enter.",
+  "seed_data_creation": "Created regression customer 'TEST_regression_v19' with AFM 094149814 (ΔΕΗ demo) — safe to delete. Prior 'TEST_regression_customer' from iteration_18 (id=6c4177c3-…) still present.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "The critical password-preservation fix is verified. SQLite state at handoff: organizations.aade_rg_username='' AND aade_rg_password='' for demo org (fa82eab8-…). Do NOT expect a live ΑΑΔΕ round-trip unless the user (or a future test) enters real ΑΑΔΕ credentials. All demo/no-creds behaviour is already covered; if you re-run, use the four-step save flow (testuser1/testpass1 → username-only → password update → clear-both) and expect the DB to mirror it exactly. Test-ids in play: aade-username-input, aade-password-input, aade-save-btn, aade-lookup-btn.",
+  "rca of the issue": "Root cause from iteration_18 (aadeRgPassword was overwritten with empty string on every save when Password input was blank) is CONFIRMED FIXED: saveAadeCredentials now builds `patch` conditionally — includes aadeRgPassword only if the submitted value is non-empty OR if the username is also being cleared (explicit clear). Verified against SQLite in all four save scenarios."
+}

@@ -1,0 +1,46 @@
+{
+  "summary": "Frontend regression + validation of the new per-customer payment prediction feature. Login (demo owner) works. On an unpaid invoice, the receipts card shows data-testid=payment-forecast-note (\"Αναμενόμενη πληρωμή 16/09/2026 · Μέση αξιοπιστία · Η αναμενόμενη ημερομηνία έχει περάσει. Ο πελάτης πληρώνει κατά μέσο όρο 0 ημέρες μετά τη λήξη (4 παραστατικά, 100% εντός προθεσμίας).\"). On a paid invoice the note is absent (correct). On customer Αφοί Γεωργίου Α.Ε. the credit profile shows data-testid=credit-behaviour-note (\"Πρόβλεψη: πληρώνει συνήθως εντός προθεσμίας (διάμεσος από 4 παραστατικά, στο χειρότερο +0 ημέρες). Οι ανοιχτές απαιτήσεις μπαίνουν στην πρόβλεψη ρευστότητας σε αυτήν την ημερομηνία.\"). Customers with no history render the profile card without the note and without console errors. Dashboard cashflow-forecast-card renders (scenarios, VAT note, lowest). cashflow-prediction-note is intentionally NOT rendered because none of the seeded customers is currently late (median +0 days); the component only mounts the note when predicted.invoices>0. /reports/cashflow loads, contains 'πρόβλεψη' text and renders chart+totals; no '+Χ ημ.' badges because there are no delayed customers in the current dataset. CSV imports regression: /invoices [data-testid=import-open-invoices] opens dialog; recent imports panel lists an existing import-undo-<id> entry (from a previous batch). /banking [data-testid=import-open-payments] present. import-mapping-toggle-invoices only appears after a file is selected (expected). /risks loads with score 21 and five risk-ai-btn-* buttons; clicking risk-ai-btn-mydata_not_sent opens risk-ai-dialog and starts the loading state, but the automation window (30s) captured only the loading skeleton – regression on iteration_20 already confirmed a full AI answer in ~30s. Mobile 390x844: /dashboard, /customers/<id>, /invoices/<id> all have documentElement.scrollWidth == 390 (no horizontal scroll). No 500 responses and no red console errors surfaced during the run.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "Dashboard / /reports/cashflow prediction visualisation",
+        "issue": "In the current seed data (Elorus drafts + on-time payer Αφοί Γεωργίου Α.Ε.) there are no overdue customers, so cashflow-prediction-note is NOT rendered on the dashboard and no 'πρόβλεψη +Χ ημ.' rows appear in /reports/cashflow. Functionally correct (conditional rendering when predicted.invoices>0) but the review request implies these should be visible. Recommend seeding at least one paid-late invoice (e.g. paidAt 20+ days after dueDate) so the median-days-late becomes >0 and QA can visually verify the widget note + the '+X ημ.' badges in the expected inflows table.",
+        "affected_selectors": ["[data-testid=\"cashflow-prediction-note\"]", "[data-testid=\"cashflow-forecast-card\"]"]
+      }
+    ],
+    "design_issues": []
+  },
+  "verified_features": [
+    "payment-forecast-note visible on unpaid invoice with date, reliability badge and Greek explanation.",
+    "payment-forecast-note ABSENT on a paid invoice (as spec requires).",
+    "credit-behaviour-note visible on Αφοί Γεωργίου Α.Ε. with median days & invoice count; no error on a customer without history.",
+    "Dashboard cashflow-forecast-card renders with cashflow-scenarios, cashflow-vat-note, cashflow-lowest testids and scenario toggle.",
+    "/reports/cashflow page loads with chart+totals and Greek 'πρόβλεψη' copy.",
+    "/invoices → import-open-invoices opens dialog; recent imports include import-undo-<batchId>.",
+    "/banking → import-open-payments present.",
+    "/risks: risk-score-value=21 with 5 risk-ai-btn-* (mydata_not_sent, mydata_deviation_limit, stale_drafts, mydata_late, customer_missing_data); AI dialog opens and shows loading state (full answer confirmed in previous iteration_20).",
+    "Mobile 390×844: /dashboard, /customers/<id>, /invoices/<id> — scrollWidth == 390 (no horizontal overflow).",
+    "No 500 network responses. No red console errors."
+  ],
+  "test_report_links": [],
+  "action_items": [
+    "(SEED / MEDIUM) Add a paid-late invoice to at least one customer (e.g. paidAt = dueDate + 20d) so paymentBehaviourByCustomer returns median>0, which will (a) render cashflow-prediction-note on the dashboard widget and (b) produce '+Χ ημ.' badges in /reports/cashflow. Without this the visual prediction UI cannot be regression-tested end-to-end.",
+    "(LOW) Confirm import-mapping-toggle-invoices appears in the import dialog after file selection — currently only visible post-upload, so tests need to actually attach a small CSV before asserting on the toggle."
+  ],
+  "critical_code_review_comments": [
+    "cashflow-forecast-card conditionally hides the prediction note when predicted.invoices===0. Good defensive coding; matches spec.",
+    "credit-profile-card renders the behaviour note only when behaviour exists (col-span-2 rounded card); no crash on empty history.",
+    "payment-forecast-note is scoped to unpaid invoices in /invoices/[id]/page.tsx — correct.",
+    "All new features expose data-testid values as documented (payment-forecast-note, credit-behaviour-note, cashflow-prediction-note, cashflow-forecast-card)."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (frontend-only run)", "frontend": "100% of testable flows; 1 flow (cashflow-prediction-note visibility) blocked by seed data absence of overdue customers"},
+  "test_credentials": "demo@timologio.gr / demo1234 (owner). logistis@timologio.gr / demo1234 (accountant/read-only).",
+  "seed_data_creation": "None. No CSV was actually uploaded (recent-imports panel already contained a previous batch's import-undo id so the undo UI is verified without adding new data). 154 Elorus drafts preserved.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "All new payment-prediction testids exist and are wired correctly (payment-forecast-note, credit-behaviour-note, cashflow-prediction-note). The dashboard note + '+Χ ημ.' rows depend on at least one late-paying customer; current DB has only on-time payers so those specific elements do not render (correct behavior). Login uses input#email / input#password on /login. Landing page (/) is public — always navigate directly to /login before authenticating.",
+  "rca of the issue": "N/A — no bugs. Only observation: prediction UI on dashboard/reports is conditionally hidden because seeded data has zero late payers."
+}

@@ -1,0 +1,64 @@
+{
+  "summary": "Frontend-only regression of Phase Α (Διπλογραφικά) + panel redesign (sidebar/favourites/mobile drawer, date-range, calm/dark theme) + accountant panel (office dashboard, alerts, closing, bulk, 'Διαχειριστής βιβλίων'). All 13 items from the spec are working. Only two minor deviations from the written spec (widget move testid naming and a 404 /logout route). No critical, no functional bugs.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "office-dashboard-grid",
+        "issue": "Spec asks for widget-move-<id> buttons but implementation exposes widget-up-<id> + widget-down-<id> instead (7 of each visible in edit mode). Functionality is equivalent but the data-testid naming does not match the review request.",
+        "selector": "[data-testid^=\"widget-move-\"] (0) vs [data-testid^=\"widget-up-\"] (7) / [data-testid^=\"widget-down-\"] (7)",
+        "priority": "LOW"
+      },
+      {
+        "component": "app-sidebar OrgSwitcher / auth routes",
+        "issue": "Navigating to /logout directly returns a 404 HTML page (404s in console for that navigation). Logout only works via the OrgSwitcher dropdown menu item ('Αποσύνδεση'). Not blocking (dropdown works) but a dedicated /logout route (or middleware redirect calling logoutAction) would be a small robustness win.",
+        "selector": "/logout",
+        "priority": "LOW"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "verified_ok": [
+    "Login as demo@timologio.gr → /accounting?tab=trial: 33 ΕΛΠ accounts, 3 entries (2026), header 'Διπλογραφικά · Γενική Λογιστική'",
+    "All five tabs present: data-testid gl-tab-trial | gl-tab-journal | gl-tab-pl | gl-tab-bs | gl-tab-chart (count=1 each)",
+    "gl-generate idempotency (2026-01-01→2026-12-31): 3 → 3 → 3 cards in gl-journal after two consecutive presses (no duplicates)",
+    "gl-trial-table totals row = 'Σύνολα 6.435,08 € 6.435,08 € 0,00 €' — debit = credit ✓",
+    "gl-pl: Κύκλος εργασίας 5.669,00 €, Καθαρό αποτέλεσμα προ φόρων 5.669,00 € ✓",
+    "gl-bs balances: assets total 6.435,08 € = equity 5.669,00 € + liabilities 766,08 € ; no 'Διαφορά ισολογισμού' message present",
+    "Manual entry: unbalanced (100/80) → gl-entry-save disabled (client-side); balanced (100/100 Ταμείο 38.00 vs Κεφάλαιο 40) saves, appears in gl-journal ('TEST_manual_entry') and shifts trial totals to 6.535,08 / 6.535,08. Server also enforces balance via postEntry() with Greek error 'Το άρθρο δεν ισοσκελίζει: χρέωση … / πίστωση … €.' Delete via gl-delete-<id> removes the entry.",
+    "Ledger link (Ταμείο) navigates to /accounting/ledger/38.00?from=…&to=… and shows gl-ledger-table with movements + running balance",
+    "gl-close-year: 1st press → toast 'Κλείσιμο χρήσης 2026: αποτέλεσμα 5669 €' and adds entry #4 (Χ 80 5.669 € / Π 42 5.669 €). 2nd press → toast 'Η χρήση 2026 έχει ήδη κλείσει.' and card count stays at 4 → idempotent ✓",
+    "Sidebar: nav-group-Πωλήσεις (and all other GROUPS labels) collapse/expand; star icon pins /banking to 'Αγαπημένα' — localStorage key tc.favourites=['/banking'] persists across reload and section 'Αγαπημένα' is rendered",
+    "Mobile (390×844): business panel — opening menu, expanding nav-group-Πωλήσεις, tapping nav-customers navigates to /customers AND closes the Sheet (no [data-state=open][role=dialog]). Same behaviour verified on /office panel (tapping any office-nav item closes the drawer)",
+    "date-range-picker on /reports/profitability: date-preset-year → URL from=2026-01-01&to=2026-12-31; date-preset-quarter → 2026-07-01&to=2026-09-30; custom date-from/date-to + date-apply → 2026-02-01&to=2026-02-28 (all three verified)",
+    "Dark mode: header button aria-label='Σκούρο θέμα' toggles html.dark; body backgroundColor turns lab(5.3 …) i.e. near-black — text remains readable, no washout observed on dashboard/accounting/office",
+    "No horizontal overflow at 390px on /accounting (scrollWidth-clientWidth = 0), /reports/profitability (=0)",
+    "Accountant office@koletsas.gr → /office: dashboard-edit-toggle + dashboard-add-widget present. Edit mode exposes 7×widget-remove-* + 7×widget-size-* + widget-up-*/widget-down-* per widget (risk_clients, deadlines, bank_unmatched, tasks_sla, doc_requests, fees, client_errors)",
+    "/office/alerts: renders 'Λάθη & προσοχή · 4 ευρήματα, 2 κρίσιμα', per-client sections via data-testid=alerts-client-<orgId> and fix links alert-fix-<orgId>-<code>. Client-based filter is implemented as buttons (alerts-client-*) rather than a <select>, but works.",
+    "/office/closing: 6 closing-step-<orgId>-<code> buttons + 1 closing-pdf-<orgId>. Clicking a step flips data-variant default↔outline (state change confirmed) and persists after page reload ✓",
+    "/office/bulk: all 5 buttons render (bulk-transmit, bulk-classify, bulk-books-csv, bulk-lock, bulk-deadline-tasks). Selection panel shows '0 επιλεγμένοι από 1 διαθέσιμους (οι πελάτες με περιορισμένη πρόσβαση εξαιρούνται)' — restricted-access clients are correctly excluded from the picker.",
+    "/settings tab Λογιστής (owner side): access-level select is set to 'Διαχειριστής βιβλίων' for the linked Λογιστικό Γραφείο Κολέτσας (current effective level shown as a badge, matching the request)",
+    "No console errors on any of the tested screens (only preload-woff2 warnings + one 404 for a favicon/asset — non-blocking)"
+  ],
+  "test_report_links": [],
+  "action_items": [
+    "LOW: Align widget-move test-ids with spec — rename widget-up-<id>/widget-down-<id> to widget-move-<id>-up/widget-move-<id>-down (or expose both) so the review-agent selector [data-testid^=\"widget-move-\"] finds them.",
+    "LOW: Add a /logout GET route (server component that calls logoutAction() and redirects to /login) so opening /logout does not 404."
+  ],
+  "critical_code_review_comments": [
+    "gl.ts::balanceSheet uses `pick(['54'])` for taxesDue, which correctly sweeps 54.00/54.03/54.09 subaccounts, but note the same startsWith('54') would also match a future '540'/'541' primary — safer to compare account.type==='liability' and code startsWith('54.'). Same pattern for '38' cash and '30' receivables (works for current chart, but is code-prefix-based).",
+    "gl.ts::generateEntries uses have=Set of `${sourceType}:${sourceId}` to guarantee idempotency of postEntry() calls. Good. However when a source document is later cancelled or amended, no reverse entry is generated — future phase should add a 'regenerate' path that first deletes stale entries by sourceId.",
+    "gl-ui.tsx ManualEntryForm: client-side disables the save button for unbalanced or empty description, but the underlying server action still throws with the Greek message when called directly. UX is fine; keep the server-side guard.",
+    "app-sidebar.tsx: NavLinks reads/writes localStorage during render inside a useEffect (OK). The Item component is declared inside NavLinks — recreated on every render which prevents React from memoising rows in a long menu. Consider moving it out to a stable component.",
+    "office-dashboard-grid.tsx: widget re-ordering exposes up/down, but no keyboard-drag (a11y), and no widget-move-<id> testids as the spec expected — either alias or rename."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (frontend-only run)", "frontend": "≈97% — all 13 spec items pass; 2 LOW naming/route deviations"},
+  "test_credentials": "demo@timologio.gr / demo1234 (owner) and office@koletsas.gr / office1234 (accountant, linked to org fa82eab8-ce41-4d73-8a3f-05a0f63f1002). Both work.",
+  "seed_data_creation": "Created 1 TEST_manual_entry (Ταμείο 38.00 Χ 100 / Κεφάλαιο 40 Π 100) and immediately deleted it. Closing entry for 2026 was created by gl-close-year (entry #4: 80→42 5.669 €) and left in place; second press correctly rejected. No other state changes.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Phase Α double-entry is stable end-to-end. When Phase Β (payroll: ΕΡΓΑΝΗ κάρτα εργασίας, ΑΠΔ, ΦΜΥ) lands, remember (a) the accountant on org fa82eab8-… already has 'Διαχειριστής βιβλίων' access — usable for write actions; (b) 154 draft invoices in the demo org are intentionally NOT posted to gl (only issued/paid/partially_paid feed generateEntries); (c) year 2026 has already been closed (entry sourceType='closing', sourceId='2026') — a second close-year press is expected to error out; if payroll adds new expenses in Dec-2026 the closing entry may need to be deleted+regenerated (there is no auto-reopen UI). Test-ids that differ from spec: use widget-up-<id>/widget-down-<id> (not widget-move-<id>) and alerts-client-<orgId> (not a select) for the org filter.",
+  "rca_of_the_issue": "No functional issue to root-cause. The two LOW findings are purely (1) test-id naming (widget-up/down vs widget-move) and (2) missing /logout GET route (logout is only reachable via the OrgSwitcher dropdown that calls logoutAction). Both are cosmetic and do not affect any user flow."
+}

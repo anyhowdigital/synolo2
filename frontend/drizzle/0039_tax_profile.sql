@@ -1,0 +1,1 @@
+ALTER TABLE `organizations` ADD `tax_profile_json` text DEFAULT '{}' NOT NULL;

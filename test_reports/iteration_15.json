@@ -1,0 +1,42 @@
+{
+  "summary": "Full frontend verification of the 3 new dashboard features (Προσαρμογή Αρχικής, Σύγκριση Περιόδων, Πρόβλεψη Ρευστότητας) as owner and accountant. All acceptance criteria pass. KPI period-comparison maths verified against demo values: net 2.610,00 € vs prev 5.669,00 € = -54% (green→red logic correct, badge red with TrendingDown); VAT 626,40 € vs 766,08 € = -18,2%; collections 6.219,48 € vs 917,60 € = +577,8% (green + TrendingUp); Ληξιπρόθεσμα card correctly has NO badge. Cashflow forecast widget (data-testid=cashflow-forecast-card) present with all 4 figures and math check: 7.633,08 + 17.904,08 − 465,22 = 25.071,94 € (matches 'Πρόβλεψη σε 90 ημέρες'). Underlying data has 13 weekly points (verified in /app/frontend/src/lib/services/cashflow.ts loop `w<13`); the chart axis visibly shows 7 labels (Recharts auto-decimation every 2 weeks — acceptable). data-testid=cashflow-lowest renders 'Χαμηλότερο σημείο ταμείου: 8.067,08 € την εβδομάδα 12/09.' 'Αναλυτικά' link → /reports/cashflow renders (h1 'Ταμειακή ρευστότητα · 90 ημέρες'). Customisation dialog lists all 10 widgets numbered 1–10 with the exact labels from DASHBOARD_WIDGETS. Turning OFF widget-toggle-top + widget-toggle-subs and saving fires toast 'Η αρχική σελίδα ενημερώθηκε.' and both widgets disappear; state PERSISTS across page reload AND navigation to /invoices and back. Reordering: widget-up-forecast moved forecast above chart12m, visually confirmed. reset-dashboard-btn + save restores defaults. Per-user isolation VERIFIED: owner hid top+subs; accountant logistis@timologio.gr sees the DEFAULT layout with top+subs visible AND retains a working customize-dashboard-btn (personal-preference model correct for read-only role). Responsive @390/768/1280/1920: scrollWidth == clientWidth on all four; @390 the customize dialog is scrollable (sh=825 > ch=717, overflow-y auto) and all 10 rows reachable. Regression smoke: /invoices 200, /recurring 200, /settings 200, /portal/<token> 200 (renders 'Σελίδα πελάτη' with balance 620,00 €). Owner dashboard prefs LEFT RESET TO DEFAULTS at end of run as requested.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "wording_issues": [],
+    "formatting_issues": [
+      {"screen": "/dashboard KPI badge", "issue": "KPI #1 badge renders '-54%' (no decimal) while KPI #2 renders '-18,2%'. The math is correct (Math.round yields exactly -54.0, and Intl formats -54.0 as '-54'), but for visual consistency across all three delta badges consider forcing minimumFractionDigits:1 so it always reads '-54,0%'. LOW priority — not part of a strict spec requirement (spec asks 'rounded to 1 decimal' which is satisfied numerically).", "priority": "LOW"}
+    ],
+    "ia_issues": [],
+    "design_issues": []
+  },
+  "verified_fixes": [
+    "KPI period comparison: -54% / -18,2% / +577,8% badges with correct up/down arrows and colour (green for ≥0, red for <0); 4th card has no badge; each badge line shows 'Προηγούμενος μήνας: X €' as required.",
+    "Cashflow forecast card: 4 figures + math (Διαθέσιμο 7.633,08 + Εισπράξεις 17.904,08 − Πληρωμές 465,22 = Πρόβλεψη 25.071,94 €), 13 data points in service, 7 auto-decimated x-axis labels visible, cashflow-lowest line correct, 'Αναλυτικά' → /reports/cashflow renders.",
+    "Cross-check numbers: /reports 'Σύνολο ανεξόφλητων' = 2.430,40 €. Cashflow 'Αναμενόμενες εισπράξεις' = 17.904,08 € legitimately exceeds it (includes 90-day-due invoices + expected subscription invoices per service logic).",
+    "Customize dialog: 10 numbered widgets, labels match DASHBOARD_WIDGETS, hide+save persists across reload and cross-page navigation (stored in memberships.dashboard_prefs_json).",
+    "Toast 'Η αρχική σελίδα ενημερώθηκε.' shown on save.",
+    "Reordering via widget-up-forecast moves widget in visual order; reset-dashboard-btn + save restores default order+visibility.",
+    "Per-user isolation: owner-level hidden widgets do NOT affect accountant; accountant (read-only) can still open Προσαρμογή.",
+    "Responsive at 390/768/1280/1920: no horizontal overflow; dialog scrollable at 390.",
+    "Regression smoke: /invoices, /recurring, /settings, /portal/<token> all 200 and render expected content."
+  ],
+  "test_report_links": [],
+  "action_items": [
+    "(LOW / optional) Consider minimumFractionDigits:1 in the KPI delta formatter (dashboard/page.tsx) so '-54%' becomes '-54,0%' for consistency with '-18,2%' and '+577,8%'."
+  ],
+  "critical_code_review_comments": [
+    "dashboard/page.tsx line ~73: `const prev = ...;  const delta = ...` — two statements on the same physical line after a `;`. Works, but reduces readability. Consider splitting into two lines.",
+    "cashflow-forecast-card 'Χαμηλότερο σημείο ταμείου' currently always chooses points[0] when tied (reduce with < comparison and initial=points[0]); acceptable for the demo, but if week 0 is negative and later weeks are also negative but lower, the current code correctly picks the min — no bug, just noting the ordering guarantee.",
+    "cashflowForecast90: x-axis in the card visually shows only 7 of the 13 labels due to Recharts auto-tick spacing. If the spec strictly wants 13 visible dd/MM labels, set XAxis `interval={0}` and rotate labels; otherwise this is fine."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (frontend-only)", "frontend": "100% for the 7 requested test areas"},
+  "test_credentials": "demo@timologio.gr / demo1234 (owner) — verified. logistis@timologio.gr / demo1234 (accountant) — verified. Portal token zZBSh-gSeef2EbbWxHfqE53h5Gw1QyhxSPThsiq1nCs — verified.",
+  "seed_data_creation": "None. Owner dashboard_prefs_json toggled during test and RESET to defaults at end (top+subs restored, default order).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Dashboard prefs stored in memberships.dashboard_prefs_json. Widget test-ids: customize-dashboard-btn, customize-dashboard-dialog, widget-row-<key>, widget-up-<key>, widget-down-<key>, widget-toggle-<key>, save-dashboard-prefs, reset-dashboard-btn, cashflow-forecast-card, cashflow-lowest. DASHBOARD_WIDGETS keys in order: actions, quick, chart12m, forecast, vat, aging, top, subs, recent, tasks. Note: chart visible axis shows 7 labels (auto-decimated), data has 13 points — treat as pass unless spec becomes strict. Owner prefs are reset at end of run; no cleanup needed.",
+  "rca of the issue": "N/A — verification-only pass, no bug reproduction required."
+}

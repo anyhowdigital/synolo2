@@ -1,0 +1,41 @@
+{
+  "summary": "Frontend E2E of feature (1) B2G electronic invoicing to Greek public sector. All 9 required flows PASS. Settings→Δημόσιο (B2G) tab lists exactly the 9 required providers, save+reload persists Ενεργό badge, customer with publicEntity + AFM 090165560 + BuyerReference GR-BUYER-001 + ΑΔΑΜ 24PROC001234567 + Project '1|ΑΔΑ-TEST' persists across reload, invoice TP-0003 shows b2g-card, happy send yields SIM- providerId + 'Σε αναμονή παρόχου', two refresh clicks advance pending→Διαβιβάστηκε→Αποδεκτό από φορέα, /api/invoices/<id>/ubl returns 200 3960 bytes with all required PEPPOL elements (CustomizationID peppol.eu:2017:poacc:billing:3.0, BuyerReference, ContractDocumentReference, ProjectReference '1|ΑΔΑ-TEST', EndpointID schemeID=9933 value 997001671, TaxTotal 24.00, PayableAmount 124.00). Validation path: after clearing project ref on customer, b2g-validation shows Greek error 'Λείπει η αναφορά έργου/προϋπολογισμού (BT-11).' and b2g-send-btn is disabled. Regression: /settings /customers /invoices /products /dashboard /settings?tab=aade all return 200 and ΑΑΔΕ Lookup tab still renders Marketplace templates + Viva panel.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "verified_working": [
+    "Login demo@timologio.gr / demo1234 → /dashboard ✓",
+    "/settings?tab=b2g: b2g-settings-card renders, provider dropdown lists 9 providers: Προσομοίωση (χωρίς αποστολή), Γενικός πάροχος (REST / raw UBL), Impact (Information Systems Impact), EPSILON NET / Epsilon Digital, SoftOne / EntersoftOne, Cosmos Business Systems, Retail@Link, Storm / Global (Q&R), Entersoft ✓",
+    "Enable b2gEnabled switch + Αποθήκευση → after reload badge='Ενεργό' ✓",
+    "Company tab shows org IBAN GR16 0110 1250 0000 0001 2300 695 (needed for PEPPOL validation) ✓",
+    "New customer 'TEST Δημόσιος Φορέας B2G' (id 4ffd4deb-a38f-4ca4-9c80-9d98abe833c8) with AFM 090165560 + customer-public-entity ON + BuyerReference=GR-BUYER-001 + ΑΔΑΜ=24PROC001234567 + Project=1|ΑΔΑ-TEST saved and persists across reload ✓",
+    "Invoice TP-0003 (id bb64fa4d-3316-4a90-99d4-99987523e513) 100€ net / 124€ gross issued → b2g-card visible on invoice detail with providerLabel 'Προσομοίωση (χωρίς αποστολή) · PEPPOL BIS Billing 3.0 (UBL 2.1)' ✓",
+    "Click b2g-send-btn → toast success, badge 'Σε αναμονή παρόχου' (pending), providerId=SIM-1789197032184, rawStatus=simulation:pending ✓",
+    "Click b2g-refresh-btn (1st) → badge 'Διαβιβάστηκε' (sent), rawStatus=simulation:sent ✓",
+    "Click b2g-refresh-btn (2nd) → badge 'Αποδεκτό από φορέα' (accepted), rawStatus=simulation:accepted ✓",
+    "GET /api/invoices/<id>/ubl → 200, 3960 bytes, contains: urn:fdc:peppol.eu:2017:poacc:billing:3.0, <cbc:BuyerReference>GR-BUYER-001</cbc:BuyerReference>, <cac:ContractDocumentReference> with 24PROC001234567, <cac:ProjectReference> with 1|ΑΔΑ-TEST, buyer <cbc:EndpointID schemeID=\"9933\">997001671</cbc:EndpointID>, <cac:TaxTotal> with 24.00, <cbc:PayableAmount currencyID=\"EUR\">124.00 ✓",
+    "Validation: clear customer Αναφορά έργου → invoice b2g-validation alert shows 'Λείπει η αναφορά έργου/προϋπολογισμού (BT-11).' and b2g-send-btn has HTML disabled attribute ✓",
+    "Regression: /settings, /customers, /invoices, /products, /dashboard, /settings?tab=aade all HTTP 200; Marketplace 15 templates + Viva webhook panel still rendered on ΑΑΔΕ Lookup tab ✓"
+  ],
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "validateB2G project-reference regex ^[123]\\|.+ correctly enforces the myDATA/B2G BT-11 prefix '1|', '2|', '3|' — good.",
+    "buildPeppolInvoiceXml uses hardcoded GREEK_PUBLIC_ENDPOINT 9933:997001671 with proper schemeID/value split — matches KE.D./GSIS spec.",
+    "b2gReferences correctly falls back invoice→customer, so per-invoice overrides work — good design.",
+    "Send button relies on component prop `blocked` for `disabled` state — server action also re-validates in sendB2G (throws with errors.join(' ')), so it is defense-in-depth. Good.",
+    "providerSend for provider=simulation is fully offline (returns SIM-<Date.now()>) — no accidental external calls. providerStatus simulation transitions pending→sent→accepted deterministically as expected.",
+    "Nit: b2g-settings-form.tsx calls toast.error/success inside the render body (`if (state && !state.ok) toast.error(state.error)`) rather than inside useEffect. This can fire duplicate toasts on re-renders. Non-blocking, but recommend moving into useEffect keyed on `state`."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (skipped per request)", "frontend": "100% (9/9 required flows)"},
+  "test_credentials": "demo@timologio.gr / demo1234 (owner) — from /app/memory/test_credentials.md",
+  "seed_data_creation": "Created 1 customer 'TEST Δημόσιος Φορέας B2G' (id 4ffd4deb-a38f-4ca4-9c80-9d98abe833c8, AFM 090165560, publicEntity=true; project ref was cleared during validation test) and 1 invoice TP-0003 (id bb64fa4d-3316-4a90-99d4-99987523e513, 124€, b2gStatus=accepted, providerId=SIM-1789197032184). Also toggled organization.b2gEnabled=true.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "B2G feature is fully working end-to-end in simulation mode. Demo org has b2gEnabled=true and IBAN configured. Test customer id=4ffd4deb-a38f-4ca4-9c80-9d98abe833c8 currently has an EMPTY b2gProjectReference (left in that state after the validation test) — if you re-run the happy path, re-fill project ref '1|ΑΔΑ-TEST' first or use a fresh customer. Invoice TP-0003 (bb64fa4d…) is already in b2gStatus=accepted. Iteration 7 marketplace applies (lawyer+gym) and Viva sim on ΤΠ-0001 are still in demo DB.",
+  "rca of the issue": "N/A — no bugs."
+}

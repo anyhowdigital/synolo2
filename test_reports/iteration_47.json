@@ -1,0 +1,16 @@
+{
+  "summary": "Retested only the fixed office deep-link route /office/open per review request. All four scenarios pass: (1) unauthenticated GET /office/open?org=x&to=/risks redirects to /login?next=... on the public host; (2) authenticated click on finding-open-<orgId>-<code> from /office/inbox redirects (307) via /office/open to a business page /invoices/<id> on the public host with the correct client org active (Δήμος Παπαδόπουλος & ΣΙΑ Ε.Ε.); (3) landed page renders (invoice detail, no 404/login); (4) returning to /office/inbox still renders. No trace of 0.0.0.0 anywhere in the redirect chain or final URLs. Fix verified.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a", "frontend": "100%"},
+  "test_credentials": "office@koletsas.gr / office1234",
+  "seed_data_creation": "",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Deep-link /office/open verified working end-to-end on public host. Redirect chain captured: 307 /office/open?org=x&to=/risks -> /login?next=...; and authenticated: 307 /office/open?org=<uuid>&to=%2Finvoices%2F<id> -> /invoices/<id>. Active-org cookie is set correctly (page shows the client org name). No 0.0.0.0 regression.",
+  "rca of the issue": "Previously /office/open used absolute redirects that leaked internal host 0.0.0.0:3000. The fix in /app/frontend/src/app/office/open/route.ts now uses Next.js redirect() with relative paths only (safeTo validated to start with '/' and not '//'), so responses use relative Location headers and browsers resolve them against the current public origin. Verified: redirect chain shows only https://cashflow-pro-295.preview.emergentagent.com URLs."
+}

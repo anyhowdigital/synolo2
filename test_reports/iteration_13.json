@@ -1,0 +1,59 @@
+{
+  "summary": "Verification pass for the fixes captured in iteration_12.json + smoke of the NEW advanced dashboard. Login demo@timologio.gr / demo1234 works and now uses method='post' (verified: form attribute + no 'password=' in URL after submit). The new dashboard renders all requested widgets (data-testid=action-center, action-center-count=10, vat-position-card, aging-card, top-customers-card, subscriptions-card) with sensible numbers and the previously reported overdue definition, credit-note sign, IA rename, sidebar labels, banking genitive months, POS 'Οθόνη αφής', /reports emoji + ISO dates, /billing wording, portal 'Σελίδα πελάτη' + 'ηλεκτρονική πληρωμή', Settings 'Εξαγωγή δεδομένων' tab and Greek tab labels ('Αναζήτηση ΑΦΜ (ΑΑΔΕ)', 'Ηλ. αλληλογραφία', 'Διασυνδέσεις & API'), /invoices/new mobile overflow (all fixed). BUT two audit items are NOT fixed and one NEW inconsistency was discovered in the new dashboard: (1) /copilot still shows 'Powered by Claude Sonnet 5' (untranslated + fake model). (2) /customers list still uses '—' in 5 numeric cells (mixed with '0,00 €' in 9 others) — inconsistency remains. (3) NEW BUG: Dashboard KPI 'Ανεξόφλητα (σύνολο) = 2.430,40 €' contradicts the aging-card just below on the same page which shows 'σύνολο 17.656,08 €' and matches /reports 'Σύνολο ανεξόφλητων 17.656,08 €'. The 'Ανεξόφλητα (σύνολο)' KPI appears to be scoped to a subset (maybe current-month only) despite its explicit '(σύνολο)' label — one of the two must change. Full responsive pass of the new dashboard at 390/768/1280/1920 shows zero horizontal overflow.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "CopilotPage", "issue": "Text 'Powered by Claude Sonnet 5' is still present on /copilot (English + refers to a model that does not exist). Audit fix from iteration_12 was NOT applied. Expected: 'Υποστηρίζεται από Claude (Anthropic)' — note both strings currently coexist in the DOM (getStaticProps/description text). Search DOM for /Sonnet\\s*5/ returns 1 match with parent innerText 'Powered by Claude Sonnet 5'.", "selector": "/copilot page description block above the ΔΟΚΙΜΑΣΤΕ chips", "priority": "HIGH (wording, still in scope of audit)"},
+      {"component": "CustomersList", "issue": "Numeric columns 'Τζίρος' and 'Υπόλοιπο' still show '—' in 5 rows while showing '0,00 €' in 9 other rows on the same page. The audit fix requires consistency. Suggestion: always render 0,00 € for numeric zero and reserve '—' for undefined-only, or vice versa but apply everywhere.", "selector": "/customers table tbody td", "priority": "MEDIUM"}
+    ],
+    "integration_issues": [
+      {"flow": "Dashboard KPI 'Ανεξόφλητα (σύνολο)' vs Aging card total vs /reports", "issue": "New KPI card 'Ανεξόφλητα (σύνολο)' shows 2.430,40 € with sublabel '0 ληξιπρόθεσμα · 0,00 €'. The aging-card in the SAME dashboard shows 'σύνολο 17.656,08 €' and /reports 'Ενηλικίωση απαιτήσεων · Σύνολο ανεξόφλητων 17.656,08 €' — a 15.225,68 € gap. The (σύνολο) label promises company-wide unpaid but the value looks scoped (probably to invoices with due date in a specific window or excluding non-overdue future-due invoices). Either rename the KPI to reflect the scope (e.g. 'Ληξιπρόθεσμα και τρέχοντος μήνα') or expose the same 17.656,08 € everywhere.", "affected_selectors": ["dashboard KPI card 'Ανεξόφλητα (σύνολο)'", "[data-testid='aging-card']", "/reports Ενηλικίωση απαιτήσεων"]}
+    ],
+    "wording_issues": [
+      {"page": "/copilot", "quote": "Powered by Claude Sonnet 5", "problem": "Untranslated + non-existent model version.", "expected": "Υποστηρίζεται από Claude (Anthropic)"}
+    ],
+    "formatting_issues": [
+      {"page": "/customers", "issue": "Inconsistent '—' vs '0,00 €' in numeric columns — 5 cells still with dash."}
+    ],
+    "ia_issues": [],
+    "design_issues": []
+  },
+  "verified_fixes": [
+    "/invoices/new mobile 390px: scrollWidth==clientWidth (no overflow at 390/768/1280). Selects reachable.",
+    "/notifications page exists, h1='Ειδοποιήσεις', 6 items with type badges and dd/MM/yyyy dates, [data-testid='mark-all-read'] present and clickable; bell badge on top bar drops from '4' to no-badge after mark-all-read (verified visually).",
+    "Login form has method='post'; after submit URL is /dashboard (no 'password=' in URL).",
+    "Dashboard 'Πρόσφατα παραστατικά' now renders ΠΤ-0001 as -248,00 € (matches /invoices).",
+    "Overdue definition unified: /dashboard 'Ανεξόφλητα · 0 ληξιπρόθεσμα · 0,00 €', /invoices?status=overdue = 0 rows, /portal 'Ληξιπρόθεσμα 0,00 €' — all agree (invoices with due date == today are NOT overdue).",
+    "/banking KPI headers use genitive: 'Εισπράξεις Σεπτεμβρίου 2026' / 'Πληρωμές Σεπτεμβρίου 2026'. No 'extrait' text anywhere in the UI (grep).",
+    "/pos header = 'Ταμείο λιανικής (POS)' with subtitle 'Οθόνη αφής για γρήγορη έκδοση αποδείξεων λιανικής (ΑΛΠ/ΑΠΥ)…' (no 'Touch-friendly').",
+    "/copilot: no 'follow-up' string; 'Υποστηρίζεται από Claude (Anthropic)' present. (See ui_bugs — 'Powered by Claude Sonnet 5' still coexists.)",
+    "/reports: no emoji, ISO dates converted to dd/MM/yyyy (01/07/2026 – 30/09/2026), Φ2 card ok.",
+    "/billing shows 'Εκδοθέντα τρέχοντος μήνα / όριο πακέτου'.",
+    "/portal: 'Σελίδα πελάτη' (not ALL CAPS), 'ηλεκτρονική πληρωμή' (not 'online πληρωμή').",
+    "Sidebar labels match spec: 'POS · Ταμείο λιανικής', 'Συνδρομές & επαναλαμβανόμενα', 'Πελάτες', 'Ευκαιρίες πωλήσεων', section 'ΤΕΧΝΗΤΗ ΝΟΗΜΟΣΥΝΗ' with 'Βοηθός AI', single 'myDATA', 'Ρυθμίσεις'.",
+    "/crm h1 = 'Ευκαιρίες πωλήσεων'; /customers h1 = 'Πελάτες' — labels match page titles.",
+    "Settings has new 'Εξαγωγή δεδομένων' tab (no ZIP export in Επιχείρηση tab body); tab strip includes Greek 'Αναζήτηση ΑΦΜ (ΑΑΔΕ)', 'Ηλ. αλληλογραφία', 'Διασυνδέσεις & API'.",
+    "New dashboard widgets present with correct testids: [data-testid=action-center] listing 6 non-zero queues + CTAs (Διαβίβαση/Επανάληψη/Αποθήκη/etc.), [data-testid=action-center-count]=10, [data-testid=vat-position-card] (ΦΠΑ εκροών 1.392,48 € − εισροών 30,02 € = εκτίμηση απόδοσης 1.362,46 €; Φ2 deadline 31/10/2026, 49 ημέρες), [data-testid=aging-card] (4 buckets + Μη ληξιπρόθεσμα, σύνολο 17.656,08 €), [data-testid=top-customers-card] (Logistics Hellas 12.015,60 €, Αφοί Γεωργίου 8.311,16 €, …), [data-testid=subscriptions-card] MRR 100,00 € (1 ενεργό πρότυπο, 1 με autoCharge).",
+    "Cross-checks OK: myDATA action-center=6 ↔ /invoices?mydata=pending 6 rows; overdue=0 across all three sources; VAT εκροών 1.392,48 € matches /reports current-quarter total; aging buckets match exactly between dashboard aging-card and /reports; MRR 100,00 € matches the single active recurring template value.",
+    "Responsive pass of new dashboard: no horizontal overflow at 390/768/1280/1920 (scrollWidth==clientWidth in all four)."
+  ],
+  "test_report_links": [],
+  "action_items": [
+    "Remove/translate 'Powered by Claude Sonnet 5' on /copilot — leave only 'Υποστηρίζεται από Claude (Anthropic)'.",
+    "Unify empty numeric cells on /customers list — always '0,00 €' (or always '—') for the 'Τζίρος' and 'Υπόλοιπο' columns.",
+    "Fix the mismatch between dashboard KPI 'Ανεξόφλητα (σύνολο) 2.430,40 €' and dashboard aging-card / /reports total 17.656,08 €. Either use 17.656,08 € (recommended, matches '(σύνολο)' promise) or rename the KPI to reflect the actual scope (e.g. 'Ανεξόφλητα τρέχοντος μήνα')."
+  ],
+  "critical_code_review_comments": [
+    "src/app/(app)/copilot/page.tsx (or component): the 'Powered by Claude Sonnet 5' string still lives in a description/hero block; remove or replace with 'Υποστηρίζεται από Claude (Anthropic)'.",
+    "src/lib/services/dashboard.ts advancedDashboard: the field feeding the KPI 'Ανεξόφλητα (σύνολο)' returns 2.430,40 € while agingTotal returns 17.656,08 €. Both should read from the same source-of-truth query (customer_balance/openInvoices). Investigate whether the KPI is filtering to a specific status/date scope inconsistent with '(σύνολο)'.",
+    "src/components/customers/… list column formatter: guard `value ?? 0` and always format via formatMoney to eliminate '—' inconsistency."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a", "frontend": "~90% — 15/18 audit fixes verified; 2 wording/format regressions remain; 1 new numeric-inconsistency bug in new dashboard KPI"},
+  "test_credentials": "demo@timologio.gr / demo1234 (owner) — verified. Portal token zZBSh-gSeef2EbbWxHfqE53h5Gw1QyhxSPThsiq1nCs — verified.",
+  "seed_data_creation": "None — verification-only pass; only mark-all-read was executed (side-effect: clears notifications badge for demo tenant).",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Preview URL https://cashflow-pro-295.preview.emergentagent.com. Login uses server-side session (Next.js) — form now has method='post'. New dashboard testids: action-center, action-center-count, vat-position-card, aging-card, top-customers-card, subscriptions-card. Notifications testid: mark-all-read (POSTs and empties the topbar bell badge). Overdue is now 'due < today' (invoices due TODAY are not overdue). Only /copilot 'Powered by Claude Sonnet 5' and /customers dash-vs-zero remained un-fixed vs iteration_12. Aging total on dashboard (17.656,08 €) is the correct one; the KPI card 2.430,40 € is the odd one out.",
+  "rca of the issue": "Dashboard KPI vs aging discrepancy: two different helpers feed the same conceptual number. advancedDashboard.unpaidTotal (or similar) probably sums remaining balance from a filtered subset (only invoices whose issue date falls in a rolling window, or excluding fully-drafted/credited), while agingCard sums open balance from ALL statuses. They must use the same query. Copilot Sonnet 5 leftover: a static string in the copilot page description block that was missed during the last translation pass — grep for /Sonnet/ in src/app/(app)/copilot/ and replace."
+}

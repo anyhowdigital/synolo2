@@ -1,0 +1,41 @@
+{
+  "summary": "Full frontend + integration verification of Group A (items 1–5): VAT in cashflow, what-if scenarios, smart reminder stages (negatives), late fee settings, late-charges card, customer credit profile, editor credit warning. All acceptance criteria PASS with correct arithmetic. One minor responsive issue found on /customers/<id> at 390 px (horizontal overflow, 458>390).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/customers/<id> at 390px", "issues": ["scrollWidth 458 > clientWidth 390 → horizontal overflow. Likely the παραστατικά table or Οικονομική εικόνα cards. Spec explicitly requires no horizontal overflow at 390 px. /dashboard @390 is OK (sw==cw==390)."]}
+    ]
+  },
+  "verified_fixes": [
+    "1) VAT in 90-day forecast: data-testid=cashflow-vat-note reads 'Περιλαμβάνεται απόδοση ΦΠΑ 1.362,46 € στις 31/10/2026.' — matches vat-position-card 'Εκτιμώμενο ΦΠΑ για απόδοση 1.362,46 €' and deadline 31/10/2026. Base scenario 'Αναμενόμενες πληρωμές' = 1.827,68 € (matches spec's expected ~1.827,68 including the 1.362,46 € VAT + other expense outflows).",
+    "2) Scenarios: data-testid=cashflow-scenarios has 3 buttons scenario-base / scenario-late15 / scenario-late30. Switching updates figures + chart + cashflow-lowest WITHOUT page reload. Διαθέσιμο σήμερα stays 7.633,08 € across all three. Lowest points decrease monotonically: BASE 8.067,08 € (12/09) → LATE15 7.601,86 € (03/10) → LATE30 7.167,86 € (03/10). Note: totalIn drops from 17.904,08 (base) to 17.780,08 (late15/30) because a 124 € inflow is shifted past the 90-day horizon — logical and expected.",
+    "3) Reminder stages accept NEGATIVES: garbage 'abc' → validation error 'Τα στάδια υπενθύμισης πρέπει να είναι αριθμοί χωρισμένοι με κόμμα, π.χ. -3,0,7,21.' Valid '-3,0,7,21' saves and PERSISTS after reload.",
+    "4) Late fee settings: lateInterestAnnualRate=8 and lateFeeFlat=5 saved and PERSIST after reload (verified DB values 8.0/5.0).",
+    "5) Late-charges-card on OVERDUE ΤΠΥ-0005 (248,00 €, due set 30 days in the past via DB): shows Ημέρες καθυστέρησης 30, Τόκοι υπερημερίας (8% ετησίως) 1,63 €, Πάγια χρέωση 5,00 €, Σύνολο 6,63 €. Arithmetic verified: 248 × 8% × 30/365 = 1.6307 → 1,63 € ✓. Card correctly ABSENT on non-overdue invoices (component only renders when daysLate > 0 per lateCharges service).",
+    "6) Customer credit profile card (Αφοί Γεωργίου, creditLimit=1000): Άριστη συνέπεια (later 'Υπό παρακολούθηση' when overdue exists), Μέσος 20 ημέρες, Εντός 100%, Πιστωτικό όριο 1.000,00 €, Διαθέσιμο 380,00 € (=1000-620 outstanding). With creditLimit=500: Διαθέσιμο -120,00 €, data-testid=credit-over-limit-note reads 'Το ανοιχτό υπόλοιπο υπερβαίνει το πιστωτικό όριο κατά 120,00 €' ✓. data-testid=credit-overdue-note reads 'Ληξιπρόθεσμο υπόλοιπο 248,00 € από σύνολο 620,00 €' ✓.",
+    "7) Editor credit warning (/invoices/new): with Αφοί Γεωργίου (limit=500, outstanding=620) → data-testid=editor-credit-warning shows red 'Υπέρβαση πιστωτικού ορίου: ανοιχτό υπόλοιπο 620,00 € έναντι ορίου 500,00 €' — consistent with the customer page numbers. With Επιχείρηση 802224910 (creditLimit=0) NO warning is rendered ✓.",
+    "8) Regression cron: POST /api/cron/reminders with Bearer dev-cron-secret-change-me → {ok:true, results:[{orgId:'…', sent:2}]}. No crash under new negative stages (-3,0,7,21) — verified with stages saved before triggering cron.",
+    "9) /dashboard @390 px: scrollWidth=clientWidth=390, no horizontal overflow."
+  ],
+  "test_report_links": ["/app/test_reports/customer_profile.png", "/app/test_reports/late_charges_card.png", "/app/test_reports/editor_warning.png", "/app/test_reports/settings_invoicing.png"],
+  "action_items": [
+    "(MEDIUM) Fix horizontal overflow on /customers/<id> at 390 px. scrollWidth=458 vs clientWidth=390. Likely the παραστατικά table or the two-column Οικονομική εικόνα / Στοιχεία grid. Add overflow-x-auto to the invoice table wrapper and/or collapse the 2-column stat grid to 1-column at sm.",
+    "(LOW) Consider adding data-testid to the vat-position-card wrapper so tests can locate it robustly (currently only found by text)."
+  ],
+  "critical_code_review_comments": [
+    "credit-profile.ts::customerCreditProfile — uses invoice.issueDate as the baseline for avgPaymentDays (paidAt − issueDate). This yields 'μέσος χρόνος πληρωμής' from issue, which is fine, but the label 'Μέσος χρόνος πληρωμής' could be ambiguous vs 'από τη λήξη'. Consider clarifying label or computing days from dueDate too.",
+    "cashflow.ts::cashflowForecast90 — when an inflow is shifted past the 90-day horizon by scenario delay, it disappears from totalIn. This is correct (out-of-window flows aren't counted) but may surprise users; a small footnote such as 'στα σενάρια καθυστέρησης, εισπράξεις εκτός 90 ημερών εξαιρούνται' could be added.",
+    "cashflow-forecast-card — Figure component uses tone='pos' for 'Αναμενόμενες εισπράξεις' (green) and 'neg' for 'Αναμενόμενες πληρωμές' (amber). Consistent with the rest of the app.",
+    "reminders.ts::parseReminderDays — range guard (-60..365) is generous; consider surfacing a friendlier message when users type a value outside the range (currently silently filtered)."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (cron/reminders + settings save persistence verified)", "frontend": "≈95% (1 responsive overflow on /customers/<id> @390)"},
+  "test_credentials": "demo@timologio.gr / demo1234 verified. Cron secret dev-cron-secret-change-me verified via POST /api/cron/reminders → sent=2.",
+  "seed_data_creation": "Temporarily set ΤΠΥ-0005 (id cf155397-0a73-4172-96e6-661471e2f926) due_date to 2026-08-13 via SQLite to exercise the overdue paths (issued invoices are not editable through /edit UI — form redirects to detail). RESTORED to 2026-09-12 at end of run. Αφοί Γεωργίου Α.Ε. creditLimit toggled 0→1000→500→0 during test and RESTORED to 0. Organization settings intentionally LEFT at reminderDays='-3,0,7,21', lateInterestAnnualRate=8, lateFeeFlat=5 as they are the target production-like values required by the spec.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Test-ids in play: cashflow-forecast-card, cashflow-vat-note, cashflow-scenarios, scenario-{base|late15|late30}, cashflow-lowest, credit-profile-card, credit-rating-badge, credit-over-limit-note, credit-overdue-note, customer-credit-limit, editor-credit-warning, late-charges-card. The invoice edit form redirects issued invoices to the detail page — to force an overdue state for the late-charges-card, update invoices.due_date directly via SQLite at /app/frontend/data/timologio.db (schema uses snake_case columns; no series_prefix column). Owner creditLimit and demo invoice state have been restored to baseline at end of run.",
+  "rca of the issue": "Responsive overflow on /customers/<id> @390 px: probably the invoices table (7 columns) without an overflow-x wrapper, or the two-column grid for Στοιχεία/Οικονομική εικόνα is not stacking below sm. Non-blocking but should be fixed to match the design guidelines already met by /dashboard."
+}

@@ -1,0 +1,163 @@
+{
+  "summary": "Time-boxed diagnostic audit (business + office back offices, no super-admin). Ran offline function tests for src/lib/accounting-bridge/index.ts with MOCKED fetch, then a live read-only UI/API sweep as demo@timologio.gr and office@koletsas.gr. Confirmed 5 accounting-bridge functional bugs, 3 UI/UX consistency issues, verified auth boundaries. No writes, no config saves, no live provider submits.",
+  "coverage": {
+    "tested_routes_business": ["/dashboard","/invoices","/invoices/new","/customers","/expenses","/products","/banking","/accounting","/reports","/mydata","/advisor","/copilot","/settings?tab=bridge","/settings?tab=b2g","/settings?tab=mydata"],
+    "tested_routes_office": ["/office","/office/clients","/office/cockpit","/office/bulk","/office/alerts","/office/inbox","/office/tasks","/office/vat","/office/closing","/office/calendar","/office/banking","/office/clients/<orgId>/bridge"],
+    "tested_apis_readonly": ["GET /api/accounting-bridge?provider=softone&entities=income,expenses","GET /api/office/accounting-bridge?org=<authorized>&provider=softone&entities=income,expenses","GET /api/office/accounting-bridge?org=<invalid> (403)"],
+    "not_tested": ["Bulk actions triggering writes","Live provider push (SoftOne/Epsilon/Elorus)","B2G/AADE real submits","cfg-save persistence","/invoices/new form submit","office/clients other than authorized org","dark/light theme sweep (only default theme captured)","keyboard focus traps"]
+  },
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "/api/accounting-bridge & /api/office/accounting-bridge (provider=softone)",
+        "issue": "Το buildProgramExport(softone, entities) ΠΑΡΑΛΕΙΠΕΙ τις οντότητες όταν ζητηθεί υποσύνολο. Ζητώντας provider=softone&entities=income,expenses ο server επιστρέφει JSON μόνο με κλειδί 'meta' — καμία λίστα income/expenses.",
+        "priority": "CRITICAL",
+        "evidence": "src/lib/accounting-bridge/index.ts lines 252-261: μόνο τα customers/suppliers/journal γράφονται με want(); income/expenses ΔΕΝ γράφονται καθόλου στο softone JSON payload. Runtime GET απόδειξη: 'softone json keys (income+expenses requested): [meta]' και 'office softone income+expenses: status:200 keys:[meta]'.",
+        "verification": "runtime"
+      },
+      {
+        "endpoint": "N/A (function pushDataset softone)",
+        "issue": "softonePush επιστρέφει πάντα ok:true αν το login πέρασε, ακόμη κι όταν ΟΛΑ τα setData επιστρέφουν success:false. Offline test: 0/2 customers, 0/1 suppliers → ok=true.",
+        "priority": "HIGH",
+        "evidence": "src/lib/accounting-bridge/index.ts lines 191-203 & test 'softone all setData:false → should NOT report ok:true' FAILED.",
+        "verification": "runtime (mocked)"
+      },
+      {
+        "endpoint": "N/A (function pushDataset restPush)",
+        "issue": "restPush θεωρεί επιτυχία κάθε HTTP 2xx ασχέτως body. Πάροχος επιστρέφει 200 {success:false,error:'denied'} → ok:true και μήνυμα 'Το σύνολο δεδομένων στάλθηκε'.",
+        "priority": "HIGH",
+        "evidence": "src/lib/accounting-bridge/index.ts lines 209-211· offline test FAILED.",
+        "verification": "runtime (mocked)"
+      }
+    ],
+    "minor": [
+      {
+        "endpoint": "actions/accounting-bridge pushBridgeAction",
+        "issue": "Το param entities παραλαμβάνεται από το UI αλλά ΔΕΝ φιλτράρει το dataset — πάντα στέλνεται πλήρες σύνολο (buildBridgeDataset + pushDataset χωρίς entities set).",
+        "verification": "static (actions/accounting-bridge.ts:172-173)"
+      },
+      {
+        "endpoint": "actions/accounting-bridge commitImportAction (customers/suppliers)",
+        "issue": "Η ενημέρωση υπάρχοντος party υπεργράφει με κενά strings (doy/address/city/email/phone ← p.foo ?? '') — καταστρέφει υπάρχοντα στοιχεία όταν το CSV δεν έχει τη στήλη.",
+        "verification": "static (actions/accounting-bridge.ts:102 & 111)"
+      },
+      {
+        "endpoint": "actions/accounting-bridge commitImportAction (expenses)",
+        "issue": "Καμία απο-διπλοτυπία εξόδων. Επανάληψη ίδιου αρχείου δημιουργεί νέες εγγραφές. Ούτε ταίριασμα supplierAfm→suppliers.",
+        "verification": "static (actions/accounting-bridge.ts:69-74)"
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "AccountingBridgeCard – bridge-download-program",
+        "issue": "Ξεμαρκάροντας ΟΛΑ τα export-entity-* checkboxes, το κουμπί ΔΕΝ γίνεται disabled και το href παραλείπει &entities=… (γιατί selected.length && …). Ο server ερμηνεύει την απουσία ως ‘όλα’ και εξάγει ΟΛΑ τα δεδομένα — αντίθετο από την πρόθεση του χρήστη.",
+        "selector": "[data-testid=bridge-download-program]",
+        "priority": "HIGH",
+        "verification": "static (accounting-bridge-card.tsx:36 & 136-138) + runtime confirmation ότι missing entities → όλα"
+      },
+      {
+        "component": "AccountingBridgeCard – Ζωντανή σύνδεση",
+        "issue": "Το κείμενο κάρτας ισχυρίζεται «Τα μυστικά αποθηκεύονται κρυπτογραφημένα στη βάση» ενώ ο server (saveBridgeConfigAction) αποθηκεύει τα credentials σε plaintext JSON.stringify στο org.accountingBridgeJson. Ψευδής ισχυρισμός ασφάλειας.",
+        "selector": "[data-testid=bridge-credentials-card]",
+        "priority": "HIGH",
+        "verification": "static (accounting-bridge-card.tsx:192, actions/accounting-bridge.ts:146-160)"
+      },
+      {
+        "component": "AccountingBridgeCard – Providers card",
+        "issue": "Στο header ενεργών παρόχων το badge για softone/epsilon/generic λέει 'Ζωντανό API' ενώ η CardDescription λέει «Η ζωντανή αποστολή μέσω API χρειάζεται διαπιστευτήρια — έρχεται στο επόμενο βήμα». Αντιφατικά μηνύματα – ο χρήστης δεν ξέρει αν είναι ενεργή σήμερα.",
+        "selector": "[data-testid=bridge-providers-card]",
+        "priority": "MEDIUM",
+        "verification": "static (accounting-bridge-card.tsx:232-244)"
+      },
+      {
+        "component": "AccountingBridgeCard – Elorus provider badge",
+        "issue": "Το Elorus δηλώνεται kind:'export' αλλά το help του λέει «Μόνο εισαγωγή (όχι API)». Στην κάρτα providers εμφανίζεται με badge «Εξαγωγή» ενώ πρόκειται για μόνο-εισαγωγή. Σύγχυση.",
+        "selector": "[data-testid=bridge-provider-elorus]",
+        "priority": "MEDIUM",
+        "verification": "static (accounting-bridge/index.ts:51-57)"
+      },
+      {
+        "component": "AccountingBridgeCard – import preview",
+        "issue": "Το preview εμφανίζει μόνο count + warnings· ο server επιστρέφει και sample (5 πρώτες εγγραφές) αλλά ΔΕΝ προβάλλεται στον χρήστη — καμία επιβεβαίωση περιεχομένου πριν την εισαγωγή.",
+        "selector": "[data-testid=import-preview]",
+        "priority": "MEDIUM",
+        "verification": "static (accounting-bridge-card.tsx:176-181 vs actions:46,50)"
+      }
+    ],
+    "integration_issues": [
+      {
+        "flow": "Bridge export softone + subset entities",
+        "issue": "Επιλογή provider=SoftOne και entities=income,expenses → το κατεβαίνον JSON δεν περιέχει τα δεδομένα τιμολογίων/εξόδων (only meta). Παραδίδει άχρηστο αρχείο.",
+        "affected_selectors": ["[data-testid=bridge-provider]", "[data-testid=export-entity-income]", "[data-testid=export-entity-expenses]", "[data-testid=bridge-download-program]"]
+      }
+    ],
+    "design_issues": [
+      {"screen": "Business bridge desktop 1920x800", "issues": ["Δύο δίπλα-δίπλα banner (‘Εργάζεστε για τον πελάτη’ + ‘AΦΜ’) χρησιμοποιούν παρόμοιο grey/green tint που κάνει δυσδιάκριτη την ενεργή επιχείρηση από τη λογιστική εντολή. Χρειάζεται σαφέστερος βαθμός contrast/label."]},
+      {"screen": "Business dashboard 1920x800", "issues": ["Οι κάρτες προόδου Onboarding χρησιμοποιούν line-through σε ολοκληρωμένα βήματα με ΙΔΙΟ χρώμα τίτλου με τα ανολοκλήρωτα — δύσκολο να διακρίνεις ‘done’ από ‘todo’ χωρίς το check-icon. Χαμηλή διάκριση κατάστασης."]},
+      {"screen": "Bridge desktop – primary-action hierarchy", "issues": ["Το ‘Λήψη αρχείου (ZIP)’ είναι primary αλλά ΔΙΠΛΑ έχει άλλα δύο secondary buttons (‘Ημερολόγιο CSV’, ‘Πλήρες JSON’) που είναι εναλλακτικές λήψεις — τρεις παρόμοιες ενέργειες χωρίς σαφή ιεραρχία ή divider. Κάντε τις 2 δευτερεύουσες σε dropdown ‘Άλλες μορφές λήψης’."]},
+      {"screen": "Settings mobile 390x844", "issues": ["Η κάρτα ‘Ενεργή επιχείρηση/ΑΦΜ’ γίνεται stacked και πιάνει ~15% του viewport προτού φανεί ο τίτλος ‘Ρυθμίσεις’ — σπάταλο κάθετο χώρο σε mobile."]},
+      {"screen": "Office bridge mobile 390x844", "issues": ["Το header ‘Λογιστικό Γραφείο Κολέτσας’ + ‘Εργάζεστε για τον πελάτη’ + Ενεργή επιχείρηση card + Αλλαγή πελάτη link + τίτλος γεμίζουν 4 σειρές context προτού ξεκινήσει η κάρτα Bridge. Consolidate σε 1 sticky context bar."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/frontend/tests/bridge_offline_diag.mjs",
+    "/app/test_reports/iter43/business_dashboard_desktop.jpeg",
+    "/app/test_reports/iter43/business_bridge_desktop.jpeg",
+    "/app/test_reports/iter43/business_bridge_mobile.jpeg",
+    "/app/test_reports/iter43/business_invoice_new_mobile.jpeg",
+    "/app/test_reports/iter43/office_overview_desktop.jpeg",
+    "/app/test_reports/iter43/office_bridge_desktop.jpeg",
+    "/app/test_reports/iter43/office_bridge_mobile.jpeg"
+  ],
+  "offline_diag_results": {
+    "passed": 4,
+    "failed": 5,
+    "failures": [
+      "parseExpenseImport Greek '1.234,56' → 1.234 (should be 1234.56). RCA: toNum() κάνει replace(',', '.') ΧΩΡΙΣ να αφαιρέσει το '.' ως χιλιάδα → parseFloat('1.234.56') = 1.234. Fix: αναγνώριση Greek locale (αν υπάρχει ‘,’ αφαίρεσε ‘.’ πρώτα).",
+      "SoftOne export → parsePartyImport roundtrip: 0 πάρτες. RCA: buildProgramExport(softone) γράφει array με {service,OBJECT,KEY,data:{CUSTOMER:[{...}]}} αλλά parsePartyImport ψάχνει row.CUSTOMER απευθείας — δεν κάνει descend στο row.data.CUSTOMER[0].",
+      "buildProgramExport(softone, {income,expenses}) → keys empty. Bug detailed above.",
+      "softonePush all setData:false → ok:true. Missing 'if (c === 0 && s === 0 && ds.customers.length+ds.suppliers.length > 0) ok=false'.",
+      "restPush 200 {success:false} → ok:true. Πρέπει να διαβάζει body και να επιστρέφει ok=false αν body.success===false."
+    ]
+  },
+  "auth_verification": {
+    "office_cross_tenant_negative": "GET /api/office/accounting-bridge?org=<invalid-uuid> → 403 Forbidden (correct)",
+    "office_authorized_client": "orgId fa82eab8-ce41-4d73-8a3f-05a0f63f1002 accessible από office@koletsas.gr (expected)",
+    "logins_tested": ["demo@timologio.gr/demo1234 OK", "office@koletsas.gr/office1234 OK"]
+  },
+  "action_items": [
+    "CRITICAL: Fix buildProgramExport('softone', ds, entities): προσθέστε want('income')/want('expenses') branches που γράφουν income/expenses στο payload (accounting-bridge/index.ts:255-260).",
+    "HIGH: Disable το bridge-download-program όταν selected.length===0· και αν selected.length===ENTITIES.length να στέλνεται &entities=all ή τίποτα – ξεκάθαρη διαφοροποίηση από ‘κανένα’ (accounting-bridge-card.tsx:36).",
+    "HIGH: Αφαιρέστε τον ψευδή ισχυρισμό «κρυπτογραφημένα» στην κάρτα credentials (line 192) ή υλοποιήστε πραγματική κρυπτογράφηση στο saveBridgeConfigAction.",
+    "HIGH: softonePush: επιστρέψτε ok:false όταν όλα τα setData απέτυχαν· χειριστείτε auth.success===false ρητά.",
+    "HIGH: restPush: parse το JSON body και σεβαστείτε το success flag· επιστρέψτε error message από τον πάροχο.",
+    "MEDIUM: pushBridgeAction: περάστε input.entities στο buildBridgeDataset ή στο pushDataset για να τιμηθεί η επιλογή του χρήστη (actions/accounting-bridge.ts:172).",
+    "MEDIUM: toNum(): υποστηρίξτε ελληνική μορφή αριθμού (comma decimal + dot thousands). Trivial fix: if (s.includes(',')) s = s.replace(/\\./g,'').replace(',', '.')",
+    "MEDIUM: parsePartyImport(): descend σε row.data.CUSTOMER[0]/row.data.SUPPLIER[0] για SoftOne setData payloads.",
+    "MEDIUM: commitImportAction party update: χρησιμοποιήστε ...(p.doy?{doy:p.doy}:{}) pattern αντί για p.foo ?? '' — να μη σβήνει υπάρχοντα στοιχεία.",
+    "MEDIUM: commitImportAction expenses: dedup βάσει (orgId,supplierAfm,issueDate,series,number).",
+    "MEDIUM: Εμφανίστε sample entries στο import-preview (το backend ήδη τα στέλνει).",
+    "MEDIUM: Elorus badge: αλλάξτε kind:'export' σε νέο kind:'import-only' με badge «Μόνο εισαγωγή» ή τουλάχιστον αλλάξτε το label του badge.",
+    "MEDIUM: Άρετε αντίφαση providers card description ‘έρχεται στο επόμενο βήμα’ vs badges ‘Ζωντανό API’ που ήδη υπάρχει η ζωντανή σύνδεση."
+  ],
+  "critical_code_review_comments": [
+    "accounting-bridge/index.ts (571 lines) — μονολιθικό. Split σε: providers.ts, dataset.ts, export.ts, import.ts, push.ts. Καθαρίστε ταυτόχρονα την ασυνέπεια Elorus/Simulation.",
+    "restPush δεν καταναλώνει το body — δεν παρέχει και error context όταν αποτυγχάνει. Combine ok status + body.success + body.error/message.",
+    "Στο softonePush μετράει επιτυχία μόνο βάσει res.success αλλά και το authenticate δεν ελέγχει auth.success — μπορεί να καλέσει setData με άκυρο clientID.",
+    "Πάνω από όλα τα Actions: κανένα explicit permission check για write στα read-only accountants — αν και resolveTarget→canWrite δουλεύει, το preview δεν καλεί resolveTarget καθόλου (δεν είναι κρίσιμο· απλώς parses αρχείο)."
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "offline_bridge_functions": "44% (4/9)",
+    "read_only_api_endpoints_tested": "3/3 correct HTTP status (auth boundaries), 1 major functional bug (softone subset returns empty)",
+    "ui_smoke_pages_desktop": "26/26 loaded no console errors, 0px horizontal overflow",
+    "ui_smoke_pages_mobile": "4/4 loaded, 0px horizontal overflow"
+  },
+  "seed_data_creation": "Καμία. Δεν γράφτηκαν δεδομένα.",
+  "retest_needed": true,
+  "main_agent_can_self_test": false,
+  "context_for_next_testing_agent": "Ο επόμενος agent μπορεί να ξανατρέξει: `cd /app/frontend && npx tsx tests/bridge_offline_diag.mjs` για regression σε 9 assertions. Οι 5 αποτυχίες είναι deterministic (χωρίς DB dependency). Ο κύριος agent πρέπει να δώσει προτεραιότητα στο #1 (softone entities missing) γιατί κάνει την επιλογή subset εντελώς μη λειτουργική. Σημείωση για UI: το data-testid στο bridge-download-program βρίσκεται στο <a> element (asChild), όχι σε nested button — χρησιμοποιήστε το selector `[data-testid=bridge-download-program]` απευθείας.",
+  "rca_summary": "Δύο βασικές αιτίες: (α) η επιλογή οντοτήτων δεν σεβαστεί στο softone export (branch missing) και στο pushBridgeAction (param unused)· (β) τα success signals από τους παρόχους αγνοούνται (softonePush counts loop αλλά ο επιστρέφων ok αγνοεί ολική αποτυχία· restPush αγνοεί body). Και τα δύο εντός index.ts — ένα εντοπισμένο fix module."
+}

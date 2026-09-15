@@ -1,0 +1,112 @@
+{
+  "summary": "Iteration 32 — ελαφρύς αθροιστικός έλεγχος (UI smoke + code-level diagnostic re-run). ΚΑΝΕΝΑ fix, μόνο ευρήματα. Real logins επιτεύχθηκαν και για business (demo@timologio.gr) και για office (office@koletsas.gr) με ActionForm + Enter μετά από networkidle. 41 routes smoke-tested; 6 code-level bugs επιβεβαιώθηκαν ξανά με πραγματικές κλήσεις modules.",
+  "coverage_matrix": {
+    "routes_smoke": {
+      "business": {"total": 23, "ok_200": 21, "failed": [{"route": "/accounting", "status": 429, "cause": "Cloudflare rate-limit (throttle κατά τη ροή, όχι bug εφαρμογής)"}]},
+      "office": {"total": 18, "ok_200": 17, "failed": [{"route": "/office/dashboard", "status": 404, "cause": "Δεν υπάρχει page module — μόνο /office. Είτε redirect /office/dashboard → /office, είτε αφαίρεση οποιουδήποτε link/menu-item που παραπέμπει εκεί."}]},
+      "office_client_demo_org": {"total": 6, "ok_200": 6, "routes": ["/office/clients/{org}","/employees","/payroll","/ergani","/assets","/accounting"]}
+    },
+    "meaningful_interactions": [
+      "Business login demo@timologio.gr → /dashboard (Επισκόπηση) OK",
+      "Office login office@koletsas.gr → /office (Λογιστικό Γραφείο Κολέτσας) OK",
+      "Settings ?tab=b2g: Δημόσιο (B2G) tab data-state=active, όλοι οι 15 tabs ορατοί (Επιχείρηση, Τιμολόγηση, Εμφάνιση PDF, myDATA, ΑΑΔΕ, Δημόσιο B2G, Σειρές, Πεδία & κανάλια, Χρήστες, Λογιστής, Ηλ. αλληλογραφία, Διασυνδέσεις & API, Λογιστική ΕΛΠ, Εξαγωγή δεδομένων, Ιστορικό)",
+      "Settings reload μετά ?tab=b2g: URL διατηρείται με ?tab=b2g",
+      "Invoice list /invoices → 173 παραστατικά ορατά, πρώτο href=/invoices/6e22ac6f-... άνοιξε στο editor με MARK/UID/Auth",
+      "Invoice PDF /api/invoices/{id}/pdf: 200, application/pdf, 28.8KB, %PDF header, οπτική επιβεβαίωση rendering (λογότυπο, στοιχεία εκδότη/λήπτη, γραμμές, ΦΠΑ 24%, MARK, UID, Authentication Code)",
+      "Employees office ?month=2026-10: heading Προσωπικό, «Νέος εργαζόμενος» + search input διαθέσιμα",
+      "Mobile 390x844 /office: layout responsive, header Λογιστικό Γραφείο Κολέτσας ορατό, hamburger στα αριστερά (visual), toasters count = 0 (κανένα διπλό Toaster)"
+    ],
+    "skipped_flows_and_reasons": [
+      "Καμία πραγματική αποστολή ΕΡΓΑΝΗ/myDATA/B2G/email/payment/leave-approval/clock (per scope: LIVE creds mismatched employer, side-effects απαγορευμένα)",
+      "Payslip PDF: 404 σε /api/office/clients/{org}/payroll/2026-09/pdf και /api/payroll/2026-09/pdf — δεν βρέθηκε public export endpoint σε αυτά τα paths. Δεν έγινε deeper crawl λόγω σκοπού (bounded smoke).",
+      "Sepa payroll file: δεν εκτελέστηκε — απαιτούνται fixtures για isolated DB, ασφαλής μόνο σε copy· δεν έγινε per scope",
+      "Sidebar double-active: automated selectors (aria-current, data-active, class regex) επέστρεψαν 0 active items — το active state χρησιμοποιεί inline Tailwind classes που δεν πιάνει το selector μας· χρειάζεται manual visual audit (screenshots δεν έδειξαν διπλό highlight στα desktop tests)",
+      "Staff portal: δεν έγινε νέο PIN session (δεν διαβάστηκαν tokens από SQLite — δεν χρειάστηκε)",
+      "AI flows (assistant), MyDATA sync, B2G real send: παραλείφθηκαν per scope"
+    ],
+    "issue_count_by_severity": {"CRITICAL": 3, "HIGH": 3, "MEDIUM": 1, "LOW": 1}
+  },
+  "diagnostic_re_run": {
+    "script": "/app/frontend/scripts/diagnostic_iter31.ts (ήδη διορθωμένο: AFM 800000118, import workCardPayload από ergani-api, winter/summer f_date, exit code 0)",
+    "results": {
+      "normalizeStatus": {"'not accepted'": "accepted (BUG)", "'unsuccessful'": "accepted (BUG)", "'failed'": "rejected (OK)"},
+      "validateB2G_cancelled": "errors=[] — καμία απαγόρευση για status='cancelled' (BUG)",
+      "ubl_invoice_withholding": {"TaxExclusive":100, "TaxAmount":24, "TaxInclusive":104, "PayableAmount":104, "expected": "TaxInclusive=124 per PEPPOL BR-CO-15 (διόρθωση: το prior report ανέφερε λάθος BR-CO-13). Withholding δεν εμφανίζεται ως cac:WithholdingTaxTotal. BUG."},
+      "ubl_credit_note": {"rootTag":"Invoice", "typeCode":"381", "expected":"rootTag=CreditNote (UBL 2.1 CreditNote-2 ns) + cbc:CreditNoteTypeCode. BUG."},
+      "athensIso": {"jan_2026-01-15T10Z":"2026-01-15T12:00:00+00:00","jul_2026-07-15T10Z":"2026-07-15T13:00:00+00:00","container_tz":"UTC","expected":"+02:00 winter / +03:00 summer. BUG — wall-clock είναι Athens local αλλά το offset suffix μένει +00:00 → 2-3h drift στα E12."},
+      "computeItem_salaried_1200": {"days=25":{"gross":1200,"net":955.57},"days=1":{"gross":48,"net":41.58}, "analysis":"computeRun (payroll.ts:157) δίνει `days: overrides.days ?? empShifts.length` — μισθωτός με 1 shift row παίρνει 1/25 της μισθοδοσίας. CRITICAL."},
+      "leaveAllowance_endDate_ignored": {"noEnd_2026":600,"withEnd_2026-01-31":600,"verdict":"Ίδιο. leaveDays(emp,year) δεν διαβάζει emp.endDate. BUG."}
+    },
+    "refutations": ["computeRun ΟΝΤΩΣ φιλτράρει e.active (payroll.ts:143) — απολυμένοι με active=false εξαιρούνται (prior claim λάθος)", "«όλοι οι Ιανουαρίου λήγοντες θέλουν proration σε τρίτο ημερολογιακό έτος» ΔΕΝ αποδείχθηκε — το πραγματικό bug είναι στενότερο (endDate ignored)"]
+  },
+  "backend_issues": {
+    "critical": [
+      {"endpoint": "buildPeppolInvoiceXml (ubl.ts:172-223)", "issue": "PEPPOL BR-CO-15 παραβίαση όταν υπάρχει παρακράτηση: TaxInclusive=104 αντί 124 (TaxExclusive+TaxAmount). Επίσης δεν εκπέμπεται cac:WithholdingTaxTotal.", "priority": "CRITICAL"},
+      {"endpoint": "buildPeppolInvoiceXml credit note", "issue": "Root <Invoice> + InvoiceTypeCode 381 αντί <CreditNote> + CreditNoteTypeCode + CreditNote-2 namespace (UBL 2.1). PEPPOL validation θα απορρίψει.", "priority": "CRITICAL"},
+      {"endpoint": "computeRun (payroll.ts:157)", "issue": "Χρησιμοποιεί shift COUNT ως days για μισθωτούς — full-time employee με 1 shift row παίρνει 48€ αντί 1200€.", "priority": "CRITICAL"}
+    ],
+    "high": [
+      {"endpoint": "normalizeStatus (b2g/providers.ts:172-178)", "issue": "'not accepted' → accepted, 'unsuccessful' → accepted (regex substring precedence).", "priority": "HIGH"},
+      {"endpoint": "athensIso (ergani-api.ts:30-35)", "issue": "Το offset suffix βγαίνει από container TZ, όχι Europe/Athens — σε UTC container εκπέμπει +00:00 ενώ το wall-clock είναι Αθήνας → 2-3h drift στα ΕΡΓΑΝΗ E12.", "priority": "HIGH"},
+      {"endpoint": "leaveAllowance (bonuses.ts:93-100)", "issue": "Αγνοεί εντελώς το emp.endDate — απολυμένος παίρνει πλήρη ετήσια αποζημίωση αδείας.", "priority": "HIGH"}
+    ],
+    "medium": [
+      {"endpoint": "validateB2G (services/b2g.ts:16-37)", "issue": "Κανένα guard για status='cancelled'/'void' — μόνο 'draft' απορρίπτεται. Ακυρωμένα τιμολόγια μπορούν να υποβληθούν στο Δημόσιο.", "priority": "MEDIUM"}
+    ],
+    "low": [
+      {"endpoint": "/office/dashboard", "issue": "HTTP 404 — δεν υπάρχει page module. Αν υπάρχει link στη nav → dead link. Πρόταση: rewrite/redirect προς /office ή αφαίρεση από menu.", "priority": "LOW"}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "OfficeSidebar/OfficeNav", "issue": "/office/dashboard επιστρέφει «Η σελίδα δεν βρέθηκε» — πιθανή αναφορά σε ανύπαρκτη route", "selector": "a[href='/office/dashboard']", "priority": "LOW"}
+    ],
+    "integration_issues": [
+      {"flow": "Payslip PDF export", "issue": "Δεν εντοπίστηκε public endpoint σε /api/office/clients/{org}/payroll/{month}/pdf ή /api/payroll/{month}/pdf (404 και τα δύο). Εάν υπάρχει άλλο route, δεν είναι discoverable από το smoke.", "affected_selectors": ["payslip download button"]}
+    ],
+    "design_issues": []
+  },
+  "positive_findings": [
+    "Business + Office login επιτεύχθηκαν με ActionForm + Enter αφού περιμέναμε networkidle — δεν χρειάστηκε καμία παράκαμψη με tc_session cookie από SQLite.",
+    "Invoice PDF export: 200, application/pdf, valid %PDF, οπτικά επιβεβαιωμένο (MARK/UID/Auth Code, VAT breakdown, footer κανονικά).",
+    "Toaster containers: 1 (κανένα διπλό) και σε desktop και σε mobile /office.",
+    "Employees month=2026-10 controls (search, νέος εργαζόμενος, φίλτρα) ορατά και λειτουργικά."
+  ],
+  "critical_code_review_comments": [
+    "ubl.ts:174 — root element hardcoded <Invoice> ανεξαρτήτως doctype (breaks credit note validation).",
+    "ubl.ts:215-220 — LegalMonetaryTotal δεν χειρίζεται παρακράτηση (BT-88 category cac:WithholdingTaxTotal missing).",
+    "providers.ts:172-178 — status normalization order λάθος (accept regex greedy, precedes reject).",
+    "payroll.ts:157 — coupling shift-count με μισθωτούς: χρειάζεται branch ανά contractType (μισθωτός default 25, ωρομίσθιος/ημερομίσθιος shift count).",
+    "ergani-api.ts:30-35 — athensIso μη portable (getTimezoneOffset() του container), υπάρχει duplicate σε άλλα σημεία της βάσης.",
+    "bonuses.ts:93-100 — leaveAllowance δεν ακολουθεί το ίδιο daysWithin pattern με christmasBonus/easterBonus (ασυνέπεια).",
+    "services/b2g.ts:16-37 — καμία lifecycle-status guard για cancelled/void."
+  ],
+  "updated_files": [],
+  "test_report_links": [
+    "/app/frontend/scripts/diagnostic_iter31.ts",
+    "/tmp/iter32_invoice.pdf",
+    "/tmp/iter32_invoice-1.png",
+    "/app/test_reports/iteration_32_findings.md"
+  ],
+  "success_rate": {
+    "backend_diagnostic": "6/6 targeted module calls executed",
+    "routes_smoke": "44/47 = 93.6% (2 CF-429 throttle non-app, 1 real 404 /office/dashboard)",
+    "pdf_export_verified": "invoice-yes, payslip-not-found"
+  },
+  "test_credentials": "Χρησιμοποιήθηκαν demo@timologio.gr/demo1234 και office@koletsas.gr/office1234 από /app/memory/test_credentials.md — αναγνωρίστηκαν και τα δύο κανονικά, καμία μεταβολή credentials/DB/env.",
+  "seed_data_creation": "καμία",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Το /app/frontend/scripts/diagnostic_iter31.ts τρέχει σε ~1s: cd /app/frontend && ./node_modules/.bin/tsx --tsconfig tsconfig.json scripts/diagnostic_iter31.ts. Επιβεβαιώνει reproducibly όλα τα 6 code-level bugs. Για routes χρησιμοποίησε wait_until=networkidle στο login πριν το submit, και ξεχωριστά browser contexts για business vs office ώστε να μη μπλέξουν cookies. Cloudflare 429 εμφανίζεται σποραδικά — sleep 10-15s μεταξύ batches. Payslip export path είναι άγνωστο — χρειάζεται source-search στα office/payroll pages για το πραγματικό endpoint. Sidebar double-active δεν πιάνεται από generic selectors — χρειάζεται manual visual audit ή targeted screenshot compare.",
+  "rca_of_issues": "Δες critical_code_review_comments και action_items — κάθε bug έχει επιβεβαιωθεί με real module call και συγκεκριμένη γραμμή πηγής. Καμία αριθμητική επαναδοκιμή δεν επαναλήφθηκε (per scope).",
+  "action_items": [
+    "HIGH: normalizeStatus → word-boundary regex, reject-patterns ΠΡΙΝ accept, ή explicit map των γνωστών provider strings.",
+    "CRITICAL: buildPeppolInvoiceXml withholding → cac:WithholdingTaxTotal (BT-88), TaxInclusive = TaxExclusive + TaxAmount, PayableAmount = totalGross - withheld.",
+    "CRITICAL: buildPeppolInvoiceXml credit note → root <CreditNote xmlns='...CreditNote-2'>, cbc:CreditNoteTypeCode, αλλαγή InvoicedQuantity → CreditedQuantity.",
+    "CRITICAL: computeRun days source → για salaried (grossSalary>0) 25 ημέρες default, override από UI· shift count μόνο για hourly/daily.",
+    "HIGH: athensIso → χρήση Intl.DateTimeFormat formatToParts με timeZoneName=longOffset ή fixed table +02/+03 βάσει DST, όχι container TZ.",
+    "HIGH: leaveAllowance → prorate qualifyingDays με daysWithin({hire..endDate}) / days-in-year όπως christmasBonus/easterBonus.",
+    "MEDIUM: validateB2G → guard status ∈ ('cancelled','void').",
+    "LOW: /office/dashboard → rewrite/redirect προς /office ή αφαίρεση link από OfficeSidebar/OfficeNav."
+  ]
+}

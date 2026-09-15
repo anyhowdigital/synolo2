@@ -1,0 +1,53 @@
+{
+  "summary": "Frontend regression on unified FilterBar + ListPagination across /invoices, /quotes, /customers, /suppliers, /products, /expenses AND 5 PDF templates for invoice a752e9ca. RESULT: all functional requirements pass. Filter bars render (data-testid=filter-bar) with search + date-range (only on invoices/quotes/expenses as spec) + presets Μήνας/Προηγ./Τρίμηνο/Έτος + status chips + Καθαρισμός link; preset-month sets ?from=2026-09-01&to=2026-09-30 and requestSubmit()s the form; page-size-50 preserves from/to in URL (?from=…&to=…&page=1&pageSize=50); chip click navigates and applies active state; search 'ΔΟΚΙΜΗ' on /customers filters 12→2 rows. Pagination range 'X–Y από Z' shown via data-testid=pagination-range (e.g. '1–20 από 20 παραστατικά'). No horizontal overflow at 1920x900 or 390x844 on all 6 business pages + /office/inbox, /office/cockpit, /office/alerts (scrollWidth == innerWidth). PDF templates: /settings?tab=appearance shows all 5 cards (Κλασικό, Μοντέρνο, Μινιμαλ, Έντονο, Κομψό); selecting each + Αποθήκευση + GET /api/invoices/<id>/pdf via browser session returns HTTP 200 application/pdf with FIVE DISTINCT byte sequences (sizes 28483/28701/28899/29066/29337; sha256 all different). pdfinfo confirms every PDF is A4 595.28x841.89 pts, single page. Invoice on-screen preview article[data-template] reflects selected id (classic/modern/minimal/bold/elegant) and has min-height 1122.52px (≈297mm @96dpi). Template restored to 'modern' at end.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "testid_naming_mismatches_with_review_spec": [
+    "spec 'filter-search' → actual 'filter-q' (search Input in FilterBar)",
+    "spec 'date-range-placeholder' → NOT PRESENT; DateRangeFields uses native <input type=date>. Visual '—' separator is shown but there is no element with data-testid=date-range-placeholder and the literal string 'από — έως' is only in a JSDoc comment, not rendered. Empty inputs simply render the browser's native date placeholder (dd/mm/yyyy).",
+    "spec 'filter-chip-<key>' → actual 'chip-<key>'",
+    "spec 'pagination-size-<n>' → actual 'page-size-<n>' (25/50/100/200 all present and functional)",
+    "spec 'pagination-prev' / 'pagination-next' → actual 'page-prev' / 'page-next'",
+    "template selector buttons on /settings?tab=appearance have NO data-testid; only aria-pressed toggles. A stable testid like pdf-template-<id> (classic/modern/minimal/bold/elegant) would make regression tests robust."
+  ],
+  "verified_working": [
+    "Login demo@timologio.gr → dashboard",
+    "FilterBar present on all 6 pages (data-testid=filter-bar)",
+    "DateRangeFields present on invoices/quotes/expenses (data-testid=date-range-fields) — absent on customers/suppliers/products which matches the spec",
+    "preset-month on /invoices → URL ?from=2026-09-01&to=2026-09-30 with auto-submit",
+    "page-size-50 on /invoices → URL ?from=…&to=…&page=1&pageSize=50 (other filters preserved)",
+    "Status chip click sets .bg-foreground active state and appends ?status=draft (verified on /invoices)",
+    "filter-clear link present when filters active; filter-submit works",
+    "Search 'ΔΟΚΙΜΗ' on /customers: 12 → 2 rows",
+    "pagination-range text: '1–20 από 20 παραστατικά', '1–1 από 1 προσφορές', '1–12 από 12 πελάτες', '1–3 από 3 προμηθευτές', '1–13 από 13 είδη', '1–5 από 5 έξοδα'",
+    "No horizontal overflow at 1920x900 and 390x844 on invoices/quotes/customers/suppliers/products/expenses AND /office/inbox|cockpit|alerts",
+    "5 PDF template cards visible on /settings?tab=appearance",
+    "All 5 saved templates produce distinct PDFs (unique SHA-256, sizes 28.4–29.3 KB): classic b711a073…, modern e4f968ed…, minimal 358da521…, bold cff68dc0…, elegant b34ddf83…",
+    "GET /api/invoices/a752e9ca-.../pdf: HTTP 200 application/pdf, %PDF-1.3 header",
+    "pdfinfo on all 5 files: Page size 595.28 x 841.89 pts (A4), 1 page",
+    "/invoices/a752e9ca... on-screen preview: article[data-template]=<selected id> and computed min-height 1122.52px (≈297mm at 96dpi)",
+    "Template restored to 'modern' at the end of the run"
+  ],
+  "test_report_links": ["/tmp/pdfs/{classic,modern,minimal,bold,elegant}.pdf (byte-level verification artifacts)"],
+  "action_items": [
+    "OPTIONAL / SPEC-COMPLIANCE: rename data-testids to match the review spec so external test suites match — filter-q→filter-search, chip-<k>→filter-chip-<k>, page-size-<n>→pagination-size-<n>, page-prev/next→pagination-prev/next. Add a visible '<span data-testid=date-range-placeholder>από — έως</span>' overlay shown when both from and to are empty (currently only a '—' separator between two native date inputs, no 'από — έως' string is ever rendered).",
+    "OPTIONAL: add data-testid='pdf-template-<id>' (classic|modern|minimal|bold|elegant) to template selector buttons in appearance-panel.tsx for testability."
+  ],
+  "critical_code_review_comments": [
+    "list/filter-bar.tsx and list/list-pagination.tsx are clean, small server components sharing state via URL — no duplication across the 6 pages. Good.",
+    "DateRangeFields relies on native <input type=date>; there is no rendered 'από — έως' placeholder despite being called out in the review request. Consider a wrapping div with data-testid=date-range-placeholder that is visible only when !f && !t and hidden otherwise (pointer-events: none over the native inputs).",
+    "PDF theme system (lib/pdf/theme.ts + invoice-pdf.tsx) produces genuinely distinct outputs per template (verified by sha256 and byte size); A4 MediaBox is honored on all 5 templates.",
+    "Template selector buttons lack data-testid, forcing tests to fall back to fragile aria-pressed+text matching."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (frontend-only)", "frontend": "100% functional; testid names diverge from review spec but every behavior verified"},
+  "test_credentials": "demo@timologio.gr / demo1234",
+  "seed_data_creation": "None. Only setting toggled was organizations.pdfThemeJson (cycled through 5 templates and restored to 'modern').",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Filter/pagination/PDF-templates feature is functionally complete. If main agent renames the testids to match spec (filter-search, filter-chip-*, pagination-size-*, pagination-prev/next, date-range-placeholder, pdf-template-*), next testing agent can rerun with those exact selectors. PDF byte-identity comparison across templates is the strongest signal that templates truly differ (not just visual chrome)."
+}

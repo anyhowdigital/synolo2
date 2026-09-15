@@ -1,0 +1,44 @@
+{
+  "summary": "Backend static + curl verification of Iteration 6: WooCommerce HMAC webhook, Shopify HMAC webhook, Resend/Svix webhook, DB migration 0018 (provider_id + provider_events), and dunning save flow capturing providerId. All 5 items pass.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": { "ui_bugs": [], "integration_issues": [], "design_issues": [] },
+  "verification_results": {
+    "woocommerce": {
+      "GET /api/webhooks/woocommerce/anyorg": "200 OK, auth hint mentions 'Bearer token via ?token=' when secret not set — PASS",
+      "POST /api/webhooks/woocommerce/anyorg (non-existent org)": "404 org_not_found — PASS (not 401 since neither secret nor token env set)",
+      "HMAC code path": "verifyHmac() uses createHmac('sha256') + timingSafeEqual with base64 length check — PASS"
+    },
+    "shopify": {
+      "route exists": "PASS (/app/frontend/src/app/api/webhooks/shopify/[orgId]/route.ts)",
+      "GET": "200 OK with auth field noting SHOPIFY_WEBHOOK_SECRET unset — PASS",
+      "POST": "404 org_not_found for non-existent org — PASS",
+      "HMAC code path": "verifyShopifyHmac() uses createHmac('sha256').digest() (bytes) + timingSafeEqual on base64-decoded header — PASS"
+    },
+    "resend": {
+      "route exists": "PASS (/app/frontend/src/app/api/webhooks/resend/route.ts)",
+      "GET": "200 OK, events_handled = [email.sent, email.delivered, email.opened, email.bounced, email.complained, email.failed] — PASS",
+      "POST email.delivered with nonexistent-id": "200 {ok:true, skipped:'no_matching_email', providerId:'nonexistent-id'} — PASS",
+      "Svix verification": "verifySvix() decodes whsec_ base64, builds `${msgId}.${timestamp}.${body}`, HMAC-SHA256, timingSafeEqual across space-separated v1,sig pairs — PASS",
+      "status map + preservation": "STATUS_MAP present; preserve list prevents downgrade from delivered/opened/bounced/complained/failed back to sent — PASS"
+    },
+    "schema": {
+      "PRAGMA table_info(email_outbox)": "provider_id TEXT NOT NULL DEFAULT '', provider_events TEXT NOT NULL DEFAULT '[]' — PASS (migration 0018 applied)"
+    },
+    "dunning_save_flow": {
+      "code": "send-dunning-email.ts line 40: `providerId = (await resp.json()).id ?? \"\"` on 2xx from /api/email/send; insert into emailOutbox includes providerId + providerEvents:'[]' (lines 46-61) — PASS"
+    }
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Resend webhook: bounced/failed error message truncation is fine, but consider capping providerEvents JSON length beyond just 20 entries — currently no per-entry size limit.",
+    "Shopify route: no 'no_line_items' short-circuit for orders/paid without line_items would abort before creating customer — currently customer is created before line-items check, leaving orphan customer records on aborted requests. Consider moving the empty-lines check earlier or wrapping in a transaction.",
+    "WooCommerce route has the same orphan-customer risk as Shopify."
+  ],
+  "updated_files": [],
+  "success_rate": { "backend": "100%", "frontend": "n/a" },
+  "seed_data_creation": "none",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "All 3 webhook endpoints (WOO/Shopify/Resend) verified with static code inspection + live curl. Env secrets intentionally unset; both HMAC/Svix code paths exist and use createHmac + timingSafeEqual correctly. DB migration 0018 confirmed applied to /app/frontend/data/timologio.db. Dunning email action correctly captures Resend provider id."
+}

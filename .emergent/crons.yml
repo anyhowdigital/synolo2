@@ -1,0 +1,27 @@
+crons:
+  - name: mydata-sync-daily
+    description: "Λήψη νέων παραστατικών εξόδων από την ΑΑ�…1512 chars truncated…fast; keep work small.
+    endpoint: "{{BASE_URL}}/api/cron/deadlines"
+    method: POST
+    enabled: true
+
+  - name: compliance-risk-radar
+    description: "Ημερήσιο radar συμμόρφωσης ΑΑΔΕ: υπολογίζει σκορ κινδύνου και ειδοποιεί για νέα κρίσιμα/υψηλά ευρήματα."
+    schedule: "30 7 * * *"
+    endpoint: "{{BASE_URL}}/api/cron/risks"
+    method: POST
+    enabled: true
+
+  - name: accountant-weekly-digest
+    description: "Εβδομαδιαίο digest στους λογιστές: επιχειρήσεις με κίνδυνο συμμόρφωσης ή στατιστικές ανωμαλίες."
+    schedule: "0 8 * * 1"
+    endpoint: "{{BASE_URL}}/api/cron/accountant-digest"
+    method: POST
+    enabled: true
+
+  - name: tax-kb-annual-review
+    description: "Ετήσια υπενθύμιση επανελέγχου των φορολογικών κανόνων του Συμβούλου (νέες κλίμακες/όρια) με human sign-off."
+    schedule: "0 9 5 1 *"
+    endpoint: "{{BASE_URL}}/api/cron/tax-kb-review"
+    method: POST
+    enabled: true

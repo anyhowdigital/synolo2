@@ -1,0 +1,44 @@
+{
+  "iteration": 38,
+  "type": "Frontend E2E verification of invoice-editor line-item typing bug fix + full invoice issuance flow",
+  "summary": "Verified end-to-end that the reported bug is FIXED. Using REAL keyboard typing (page.keyboard.type, not element.value injection): (1) On /invoices/new with no product selected in line 0, description accepted 'Παροχή υπηρεσιών συμβούλου' as typed; qty=3, unitPrice=100, discount=10 all registered; Σύνολα panel updated to Καθαρή 270,00 € / ΦΠΑ 24% 64,80 € / Πληρωτέο 334,80 € (math correct: 3×100×0.9=270). (2) Added a second line via 'Προσθήκη γραμμής' — both lines independently accept typing (line0 desc/qty/price='Υπηρεσία Α'/2/50, line1 desc/qty/price='Υπηρεσία Β'/1/200). (3) Selected customer 'ALELI ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ · 801454624' via combobox AFTER typing line values — all typed line values PRESERVED (line0 desc/price='Υπηρεσία Α'/50, line1 desc='Υπηρεσία Β'). This directly addresses the previously flagged concern (iter37 minor) about applySeries eating in-progress input. (4) Clicked 'Έκδοση παραστατικού' — editor-confirm-issue-dialog appeared with Επιχείρηση='Δήμος Παπαδόπουλος & ΣΙΑ Ε.Ε.', Παραστατικό='ΤΠ · ΤΠ · επόμενος αριθμός κατά την έκδοση', Πελάτης='ALELI ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ', Πληρωτέο='372,00 €' (2×50 + 1×200 = 300 net + 72 ΦΠΑ = 372, correct). Closed via -back cleanly. (5) Save-as-draft on fresh /invoices/new: without customer shows clear inline invoice-error-customerId 'Επιλέξτε πελάτη…', line data preserved; with customer selected, blocked by fiscal-period lock error 'Η περίοδος 2026-09 είναι κλειδωμένη…' (from prior test data), line data still preserved — acceptable per task spec. (6) Hydration guard: on page load with 1.5s settle, buttons show 'Έκδοση παραστατικού' and 'Αποθήκευση ως πρόχειρο' (NOT 'Προετοιμασία…'), disabled attribute is null → enabled correctly. (7) Regression: Παρατηρήσεις textarea accepts typing ('Ελέγχος σημειώσεων'); issueDate/dueDate inputs render with values 2026-09-14 / 2026-10-14 and remain editable.",
+  "verified": [
+    "BUG FIX CONFIRMED: line 0 description/quantity/unitPrice/discountPercent all accept real keyboard input with no product selected",
+    "Σύνολα (Καθαρή/ΦΠΑ/Πληρωτέο) recompute correctly after every field change",
+    "Second line added via 'Προσθήκη γραμμής' — independent typing works on line 1",
+    "Typed line values survive customer selection (shadcn Select re-render + applySeries no longer swallows input)",
+    "editor-confirm-issue-dialog opens with full context (company, document label, customer, total) and closes on -back",
+    "invoice-editor-issue and invoice-editor-save-draft buttons enabled on load (hydration guard OK)",
+    "Empty customer save-as-draft: inline invoice-error-customerId with correct Greek text, line data preserved",
+    "Notes textarea + issue/due date inputs work (regression clean)"
+  ],
+  "not_tested": [
+    "Final -confirm click to actually POST the issuance (would create real doc + call myDATA); intentionally skipped per convention",
+    "Draft actually persisted end-to-end because the demo tenant has fiscal period 2026-09 locked from earlier test iterations — this is orthogonal to the reported bug"
+  ],
+  "issues": {
+    "critical": [],
+    "minor": [
+      {"where": "Demo tenant fiscal period lock", "observation": "Fiscal period 2026-09 is marked locked, blocking new drafts/issuance in the current month. Not a code bug, but E1 may want to unlock the demo period (Αναφορές → Μηνιαίο κλείσιμο) so future testers can exercise the terminal draft/issuance step."}
+    ]
+  },
+  "code_review_comments": [
+    "invoice-editor.tsx is 1033 lines — split recommendation from iter37 still stands (Header/Series/Customer, Lines, Dimensions, TotalsSidebar).",
+    "clearField early-return guard (line 209 `if (!fieldErrors[field]) return;`) is a good minimal fix; consider debouncing or moving the onInputCapture into a per-field onChange to eliminate the sync setState-on-keystroke pattern entirely.",
+    "hydration guard uses `!hydrated || pending || !seriesId`; consider also disabling when `lines.length === 0` for defensive UX."
+  ],
+  "test_credentials": "demo@timologio.gr / demo1234 (owner) — unchanged",
+  "seed_data_creation": "None. No invoice or customer created. Only interactive dialog opened and closed via -back.",
+  "updated_files": [],
+  "test_report_links": [
+    "/app/test_reports/it38_line0_typed.jpeg",
+    "/app/test_reports/it38_confirm_dialog.jpeg",
+    "/app/test_reports/it38_draft_result.jpeg",
+    "/app/test_reports/it38_draft_saved.jpeg"
+  ],
+  "success_rate": {"backend": "n/a (not requested)", "frontend": "100% of primary acceptance criteria"},
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "The line-item typing bug (onInputCapture -> clearField -> setFieldErrors on every keystroke) is fully resolved by the early-return guard. If retesting terminal issuance/draft persistence, first unlock fiscal period 2026-09 via Αναφορές → Μηνιαίο κλείσιμο for the demo owner tenant.",
+  "rca of the issue": "N/A — bug is fixed, verified via real keyboard events."
+}

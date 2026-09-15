@@ -1,0 +1,76 @@
+{
+  "summary": "Frontend-only e2e test of Phase Β (payroll + ΕΡΓΑΝΗ + Πάγια) with accountant office@koletsas.gr on org fa82eab8-… for month 2026-10 (and 2026-11 for overtime feed). All 11 review items pass functionally with 3 LOW deviations from the written spec (double-post block is via disabled-button + 'Καταχωρημένη' badge rather than a Greek toast; empty APD/FMY error is delivered as a plain-text 400 full-page navigation instead of a toast; business-user lockout redirects to /accountant-signup instead of a proper 'not authorized' page). All monetary calculations match the spec exactly.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "payroll-panel (post/recompute after post)",
+        "issue": "Spec asks for a Greek toast when trying to post twice or recompute a posted month. Implementation instead disables data-testid='payroll-compute' and data-testid='payroll-post' and shows a 'Καταχωρημένη' badge next to the tabs. Behaviour is safe (blocked) but no Greek message is emitted on the 2nd click. Toast messages array was empty in both attempts.",
+        "selector": "[data-testid=\"payroll-post\"][disabled], [data-testid=\"payroll-compute\"][disabled]",
+        "priority": "LOW"
+      },
+      {
+        "component": "payroll-panel (APD/FMY on empty month)",
+        "issue": "Clicking payroll-apd / payroll-fmy on a month with no run causes the API to respond text/plain 400 'Δεν υπάρχει μισθοδοσία για τον μήνα.' and the browser navigates to that raw text page (because the link is a real <a href> download). Message IS clear and in Greek but should probably be surfaced as a toast without leaving the panel.",
+        "selector": "[data-testid=\"payroll-apd\"], [data-testid=\"payroll-fmy\"]",
+        "priority": "LOW"
+      },
+      {
+        "component": "office guard for business user",
+        "issue": "Logged in as demo@timologio.gr (business owner) and navigating to /office/clients/<org>/{payroll,ergani,assets} → redirect to /accountant-signup form. The block works (business user cannot see the accountant pages) but the destination is misleading — the user does not need to sign up an accountant firm. A 403 page or a redirect back to /dashboard with a toast would be nicer.",
+        "selector": "/accountant-signup",
+        "priority": "LOW"
+      },
+      {
+        "component": "/office/clients/<org>/accounting",
+        "issue": "The office-side accounting page exposes only office-gl-generate + office-gl-trial (Ισοζύγιο). There is no journal tab or gl-tab-journal testid to view individual entries — the payroll journal entry created by payroll-post is only visible indirectly via account balances in the trial balance (60 3.424,12 Χ = 55 998,48 + 54.03 251,16 + 53 2.174,48 Π, all balanced). Spec asked to see the entry in 'Ημερολόγιο'.",
+        "selector": "[data-testid=\"gl-tab-journal\"] (not present in office view)",
+        "priority": "LOW"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "verified_ok": [
+    "Accountant login → /office/clients/<org>/payroll?month=2026-10 loads. Testids present: payroll-month, payroll-compute, payroll-post, payroll-apd, payroll-fmy, employee-add, payroll-totals, payroll-table, employees-table, payslip-<empId>",
+    "employee-add modal exposes employee-lastName/firstName/afm/amka/specialtyCode/specialtyName/kpk/hireDate/grossSalary/hoursPerWeek/children/save. Added TESTLast TESTFirst / AFM 999888777 / 1400 € — appears in employees-table and in payroll-table after compute",
+    "Sanity numbers @ 1400 € gross (Παπαδόπουλος Νίκος 2026-10): Ακαθάριστες 1400.00 €, ΕΦΚΑ εργαζομένου 187.18 €, ΕΦΚΑ εργοδότη 312.06 €, ΦΜΥ 125.58 €, Καθαρά 1087.24 € — matches spec exactly",
+    "Recompute idempotency: 2 employees × 2 consecutive computes → payroll-table still has exactly 2 rows (no duplicates). KPI totals doubled to 2800.00 / 374.36 / 624.12 / 251.16 / 2174.48",
+    "1st payroll-post: run flips to 'Καταχωρημένη' badge; payroll-compute AND payroll-post become disabled; entry is created (October trial balance shows 60=3.424,12 Χ, 55=998,48 Π, 54.03=251,16 Π, 53=2.174,48 Π — balanced)",
+    "Documents registry contains 8+ authenticated docs (payslip, ΕΡΓΑΝΗ E4/E12, ΦΜΥ, ΑΠΔ, monthly closing). /verify/<code> shows 'Γνήσιο έγγραφο', code, type, period, business AFM, accountant name + Α.Μ. ΟΕΕ 0123456, SHA-256 hash, and a 'Κατέβασμα αντιγράφου' link",
+    "Payslip PDF: click payslip-<empId> downloads Apodoxes_2026-10_TESTLast_TESTFirst.pdf (25.8 KB) — real PDF",
+    "ΑΠΔ file: APD_800000118_202610.txt (416 B fixed-width). ΦΜΥ file: FMY_JL10_800000118_202610.csv (357 B semicolon)",
+    "ΕΡΓΑΝΗ /office/clients/<org>/ergani?month=2026-10: shift-employee/date/start/end/break/overtime/save all work. Added shift (Παπαδόπουλος 2026-10-05 09-19 br=30 ot=120) → 'Βάρδιες 2026-10 (1)'. shift-delete-<id> testid rendered",
+    "ergani-E12 / E4 / E3 / E8 all download valid XML files (each starts with '<?xml version=\"1.0\" encoding=\"UTF-8\"?><Ergani form=…><Employer><AFM>80000…'). Sizes 205–679 B",
+    "Overtime feeds payroll: 2026-11 shift (120 min overtime, 1 day) → after payroll-compute Παπαδόπουλος row shows 1 day, 2 overtime hours, gross 75.40 €. Toast: 'Υπολογίστηκε: ακαθάριστες 1475.40 € · καθαρά 1152.56 €'",
+    "Πάγια /office/clients/<org>/assets?month=2026-10: asset-name/category/accountCode/acquiredAt/cost/usefulYears/save testids present. Added TEST_Server 2400 € × 5 yr (monthly depr 40 €). Registry now 2 assets",
+    "assets-post-depreciation 1st click: toast 'Καταχωρήθηκαν αποσβέσεις 73.33 € για 2 πάγια.' (33.33 laptop + 40 server). 2nd click: toast 'Οι αποσβέσεις 2026-10 έχουν ήδη καταχωρηθεί.' — block works with clear Greek message",
+    "asset-delete-<id> removes TEST_Server (confirm dialog auto-accepted)",
+    "Business user (demo@timologio.gr) → /office/clients/<org>/{payroll,ergani,assets} redirect to /accountant-signup (blocked). Demo user's regular pages /accounting, /dashboard, /customers still work",
+    "Mobile 390×844: /office/clients/<org>/payroll horizontal overflow = 3 px (within tolerance from inner-table scroll), /ergani = 0, /assets = 0. Cards stack vertically, tabs visible, forms usable, hamburger menu appears",
+    "Regression: /office (widgets: risk_clients, deadlines, bank_unmatched, tasks_sla, doc_requests, fees, client_errors + dashboard-edit-toggle + dashboard-add-widget), /office/alerts (renders), /office/closing (11 closing-* testids), /office/documents-registry (8 signed docs) — all render",
+    "No blocking console errors — only one 400 from the APD/FMY empty-month case (expected) and preload-woff2 warnings"
+  ],
+  "test_report_links": [],
+  "action_items": [
+    "LOW: Emit an explicit Sonner toast (e.g. 'Η μισθοδοσία 2026-10 έχει ήδη καταχωρηθεί.') on the disabled payroll-post/payroll-compute so users get a clear Greek message when they retry, instead of a silently disabled button. Same pattern is already applied on assets-post-depreciation and works well.",
+    "LOW: For APD/FMY on empty months, wrap the download click in a client-side check (e.g. hasRun state) and show a toast 'Δεν υπάρχει μισθοδοσία για τον μήνα 2026-XX — υπολογίστε πρώτα.' rather than letting the anchor navigate to a plain-text 400 page.",
+    "LOW: Business-user access to /office/clients/<org>/... should redirect to /dashboard (or a 403 page) rather than /accountant-signup — the current destination invites the owner to create an accounting firm which is misleading.",
+    "LOW: Expose the payroll GL entry on /office/clients/<org>/accounting (either as a 'Ημερολόγιο' tab with entry cards, or by linking through the Ισοζύγιο rows). Currently the accountant can only see the aggregate account balances from trial balance."
+  ],
+  "critical_code_review_comments": [
+    "payroll.ts::computeRun must correctly upsert existing lines for a given (runId, employeeId) — verified by the 2-run idempotency test (2 rows stay 2). If the DB schema doesn't have a unique (runId, employeeId) index this could regress silently; recommend adding one.",
+    "payroll.ts::postRun idempotency is enforced by disabling UI buttons + status='posted' check on the server (safe), but the UI wrapper eats the server rejection silently. Surface the returned error message as a toast in the server action so users know why the click did nothing.",
+    "api/office/payroll/route.ts kind=apd/fmy: returning text/plain 400 works when the user is calling via fetch, but the panel uses a real <a href download> so the browser navigates to the raw 400 page. Prefer having the panel call the endpoint via fetch, then trigger a Blob download, so 4xx responses are caught and surfaced as toasts.",
+    "The office guard middleware redirects non-accountant users to /accountant-signup for any /office/* URL — this looks like a copy-paste from the accountant onboarding flow. It should differentiate 'no accountant account exists' vs 'this user is a business owner' and redirect the latter to /dashboard with an 'Δεν έχετε πρόσβαση' toast.",
+    "fixed-assets.ts::postMonthlyDepreciation returns a proper toast on duplicate ('έχουν ήδη καταχωρηθεί') — this is the pattern the payroll module should copy."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (frontend-only run)", "frontend": "≈95% — 11/11 spec items functionally pass, 4 LOW UX/messaging deviations"},
+  "test_credentials": "office@koletsas.gr / office1234 (accountant) and demo@timologio.gr / demo1234 (business owner). Both work.",
+  "seed_data_creation": "Created 1 test employee TESTLast TESTFirst (AFM 999888777, 1400 €) in org fa82eab8-… — LEFT IN DB. Posted 2026-10 payroll run for that org (2 employees × 1400 = 2800 € gross, 3.424,12 € debit on 60) — LEFT posted. Created a 2026-11 payroll run via compute (not posted) — LEFT as draft. Added 2 ΕΡΓΑΝΗ shifts (Παπαδόπουλος 2026-10-05 and 2026-11-04, each 120 min overtime) — LEFT in DB. Added TEST_Server asset (2400 € × 5 yr) then DELETED it. Posted 2026-10 depreciation journal entry (73.33 € = 33.33 laptop + 40 server) — LEFT posted; note the 40 € portion refers to the now-deleted server, so book-value math for 2026-10 will show a small residual until reversal — please tell the user.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Phase Β payroll/ergani/assets is stable for the accountant on org fa82eab8-…: 2026-09 and 2026-10 are BOTH posted (locked), 2026-11 has an unposted draft with 1 employee having 2 h overtime. To retest a fresh compute→post cycle without unlocking, use month 2026-12 or a different org. The only pending seed cleanup is (a) the leftover 2026-10 depreciation entry that still contains 40 € for the deleted TEST_Server asset, and (b) TESTLast TESTFirst employee. The office-side /accounting page only shows office-gl-trial, no gl-tab-journal — do not look for individual entry cards on that route.",
+  "rca_of_the_issue": "No functional bugs. The four LOW findings are UX/messaging deviations: (1) double-post feedback is via disabled buttons rather than a Sonner toast — copy the 'έχουν ήδη καταχωρηθεί' pattern from fixed-assets; (2) APD/FMY empty-month failure is a text/plain 400 page-navigation because the download button is an anchor — switch to fetch+blob; (3) business-user lockout redirects to /accountant-signup instead of /dashboard; (4) no Ημερολόγιο tab in the office accounting page."
+}

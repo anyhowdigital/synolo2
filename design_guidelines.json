@@ -1,0 +1,210 @@
+{
+  "project_identity": {
+    "name": "Σύνολο ERP",
+    "tagline": "Η Ολοκληρωμένη Πλατφόρμα ERP & Οικοσύστημα Ηλεκτρονικής Τιμολόγησης",
+    "target_audience": "Επιχειρήσεις όλων των μεγεθών, Ελεύθεροι Επαγγελματίες και Λογιστικά Γραφεία",
+    "emotional_archetype": "ORGANIC_SWISS_PERFORMANCE",
+    "positioning_narrative": "Το Σύνολο ERP συνδέει την καθημερινή διοίκηση της επιχείρησης με το λογιστικό γραφείο σε μία ενιαία, ισχυρή πλατφόρμα με απόλυτη σχεδιαστική και λειτουργική συνέπεια."
+  },
+  "navigation_philosophy": {
+    "backoffice_sidebar_routes": [
+      { "path": "/dashboard", "label": "Πίνακας Ελέγχου", "section": "main" },
+      { "path": "/invoices", "label": "Τιμολόγια", "section": "sales" },
+      { "path": "/quotes", "label": "Προσφορές", "section": "sales" },
+      { "path": "/pos", "label": "POS / Λιανική", "section": "sales" },
+      { "path": "/customers", "label": "Πελάτες", "section": "sales" },
+      { "path": "/expenses", "label": "Έξοδα", "section": "purchases" },
+      { "path": "/suppliers", "label": "Προμηθευτές", "section": "purchases" },
+      { "path": "/products", "label": "Προϊόντα & Υπηρεσίες", "section": "inventory" },
+      { "path": "/inventory", "label": "Αποθήκη", "section": "inventory" },
+      { "path": "/banking", "label": "Τράπεζες & Ταμείο", "section": "finance" },
+      { "path": "/projects", "label": "Έργα & Χρονοχρέωση", "section": "management" },
+      { "path": "/employees", "label": "Προσωπικό & HR", "section": "management" },
+      { "path": "/reports", "label": "Αναφορές & ΦΑ", "section": "reports" },
+      { "path": "/mydata", "label": "myDATA ΑΑΔΕ", "section": "compliance" },
+      { "path": "/accounting", "label": "Λογιστική / Γέφυρα", "section": "compliance" },
+      { "path": "/settings", "label": "Ρυθμίσεις", "section": "system" }
+    ],
+    "accountant_office_sidebar_routes": [
+      { "path": "/office/cockpit", "label": "Cockpit Γραφείου", "section": "overview" },
+      { "path": "/office/inbox", "label": "Inbox Ευρημάτων", "section": "overview" },
+      { "path": "/office/clients", "label": "Πελάτες Γραφείου", "section": "clients" },
+      { "path": "/office/tasks", "label": "Εργασίες & Εκκρεμότητες", "section": "management" },
+      { "path": "/office/calendar", "label": "Ημερολόγιο Δηλώσεων", "section": "management" },
+      { "path": "/office/vat", "label": "ΦΠΑ & Φορολογία", "section": "tax" },
+      { "path": "/office/fees", "label": "Αμοιβές & Υπόλοιπα", "section": "finance" },
+      { "path": "/office/documents", "label": "Έγγραφα Πελατών", "section": "documents" },
+      { "path": "/office/bulk", "label": "Μαζικά Εργαλεία", "section": "tools" },
+      { "path": "/office/team", "label": "Ομάδα & Ρόλοι", "section": "system" }
+    ],
+    "active_state_classes": "bg-sidebar-accent text-sidebar-accent-foreground font-medium rounded-lg px-3 py-2 transition-colors",
+    "primary_action_rule": "The primary creation action (+ Νέο ...) MUST be located on the top-right of PageHeader, never inside the sidebar.",
+    "mobile_nav_rules": {
+      "viewport": "390px",
+      "sidebar_behavior": "Slide-over Sheet drawer",
+      "top_bar": "Sticky top-0 z-40 backdrop-blur-md bg-background/80 border-b",
+      "min_touch_target": "h-11 w-11 (minimum 44px x 44px)"
+    }
+  },
+  "page_anatomy_template": {
+    "structure": [
+      "PageHeader (Title + Description + Breadcrumb/Actions)",
+      "KPI Strip (Optional 4-card metric overview)",
+      "FilterBar (Search Input with icon + DateRangeFields 'από — έως' + Presets + Filter Chips + Clear Button)",
+      "TableShell or Grid Cards (Wrapped in <TableShell> with sticky headers)",
+      "ListPagination (Default 25 items, range 'X–Y από Z', page size links [25, 50, 100, 200], prev/next navigation)"
+    ],
+    "spacing_tokens": {
+      "page_container": "space-y-6 p-4 md:p-6 lg:p-8 max-w-[1600px] mx-auto w-full min-w-0",
+      "page_header": "flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-2 border-b border-border/40",
+      "kpi_grid": "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4",
+      "filter_bar": "mb-4 space-y-3",
+      "table_shell": "overflow-x-auto rounded-xl border bg-card",
+      "pagination_container": "mt-3 flex flex-wrap items-center justify-between gap-2 text-sm"
+    }
+  },
+  "existing_primitives_reference": {
+    "page_header": "components/page-header.jsx (exports PageHeader, EmptyState)",
+    "filter_bar": "components/list/filter-bar.jsx (exports FilterBar)",
+    "list_pagination": "components/list/list-pagination.jsx (exports ListPagination, TableShell)",
+    "date_range_fields": "components/list/date-range-fields.jsx (exports DateRangeFields)"
+  },
+  "list_page_consistency_blueprint": {
+    "business_pages": {
+      "projects": {
+        "file_path": "src/app/(app)/projects/page.jsx",
+        "header_spec": "Use PageHeader with title 'Έργα & Χρονοχρέωση', description 'Διαχείριση έργων, καταγραφή χρόνου & παρακολούθηση προϋπολογισμού', primary action button '+ Νέο Έργο' on top right zone.",
+        "filter_bar_spec": "Use FilterBar with action='/projects', q, from, to, searchPlaceholder='Αναζήτηση έργου, πελάτη, κωδικού...', showDates=true, chips for status (Όλα, Σε εξέλιξη, Ολοκληρωμένα, Σε αναμονή), clearHref='/projects'.",
+        "table_spec": "Wrap table inside TableShell component. Right align numeric/budget columns with font-mono tabular-nums. Use semantic status badges.",
+        "pagination_spec": "Use ListPagination with default pageSize=25 (page sizes up to 200), total count, and hrefFor handler preserving q, status, from, to params.",
+        "empty_state_spec": "Use EmptyState with title='Δεν βρέθηκαν έργα', description='Δεν υπάρχουν εγγραφές έργων που να αντιστοιχούν στα φίλτρα search.', action='Δημιουργία Νέου Έργου'.",
+        "testable_criteria": ["data-testid='filter-bar'", "data-testid='filter-q'", "data-testid='filter-from'", "data-testid='filter-to'", "data-testid='list-pagination'", "data-testid='page-size-25'", "data-testid='row-actions-btn'"]
+      },
+      "banking": {
+        "file_path": "src/app/(app)/banking/page.jsx",
+        "header_spec": "Use PageHeader with title 'Τράπεζες & Ταμείο', description 'Διαχείριση τραπεζικών λογαριασμών, κινήσεων & αντιστοίχιση', actions for '+ Νέος Λογαριασμός' and 'Εισαγωγή Statement'.",
+        "filter_bar_spec": "Use FilterBar with action='/banking', q, from, to, searchPlaceholder='Αναζήτηση κίνησης, αιτιολογίας, IBAN...', showDates=true, chips for reconciliation status (Όλα, Αντιστοιχισμένα, Εκκρεμή, Αυτόματα), clearHref='/banking'.",
+        "table_spec": "Wrap transaction list in TableShell. Format credit/debit amounts right-aligned font-mono tabular-nums. Semantic badges for status.",
+        "pagination_spec": "Use ListPagination with default pageSize=25 (up to 200) and range 'X–Y από Z'.",
+        "empty_state_spec": "Use EmptyState for empty bank movements with action to import statement or add transaction.",
+        "testable_criteria": ["data-testid='filter-bar'", "data-testid='filter-q'", "data-testid='date-range-fields'", "data-testid='list-pagination'"]
+      },
+      "employees": {
+        "file_path": "src/app/(app)/employees/page.jsx",
+        "header_spec": "Use PageHeader with title 'Προσωπικό & HR', description 'Μητρώο εργαζομένων, άδειες & υπολογισμός μισθοδοσίας', primary CTA '+ Νέος Εργαζόμενος'.",
+        "filter_bar_spec": "Use FilterBar with action='/employees', q, searchPlaceholder='Αναζήτηση με όνομα, ΑΦΜ, ΑΜΚΑ, ειδικότητα...', showDates=false, chips for status (Όλοι, Ενεργοί, Σε άδεια, Αποχωρήσαντες), clearHref='/employees'.",
+        "table_spec": "Wrap employee grid/table in TableShell. Format gross salary & costs right-aligned font-mono tabular-nums.",
+        "pagination_spec": "Use ListPagination with default pageSize=25 (up to 200).",
+        "empty_state_spec": "Use EmptyState when no employees match filters.",
+        "testable_criteria": ["data-testid='filter-bar'", "data-testid='list-pagination'"]
+      }
+    },
+    "office_pages": {
+      "clients": {
+        "file_path": "src/app/office/clients/page.jsx",
+        "header_spec": "Use PageHeader with title 'Πελάτες Γραφείου', description 'Επισκόπηση & διαχείριση πελατών λογιστικού γραφείου', primary CTA '+ Νέος Πελάτης Γραφείου'.",
+        "filter_bar_spec": "Use FilterBar with action='/office/clients', q, searchPlaceholder='Αναζήτηση με επωνυμία, ΑΦΜ, υπεύθυνο...', showDates=false, chips for category/status (Όλοι, Ενεργοί, Με εκκρεμότητες, Αρχειοθετημένοι), clearHref='/office/clients'.",
+        "table_spec": "Wrap table in TableShell. Right align fee amounts & pending counts font-mono tabular-nums.",
+        "pagination_spec": "Use ListPagination with default pageSize=25 (up to 200).",
+        "empty_state_spec": "Use EmptyState for no matching office clients.",
+        "testable_criteria": ["data-testid='filter-bar'", "data-testid='list-pagination'"]
+      },
+      "tasks": {
+        "file_path": "src/app/office/tasks/page.jsx",
+        "header_spec": "Use PageHeader with title 'Εργασίες & Εκκρεμότητες', description 'Παρακολούθηση εργασιών γραφείου & προθεσμιών', primary CTA '+ Νέα Εργασία'.",
+        "filter_bar_spec": "Use FilterBar with action='/office/tasks', q, from, to, searchPlaceholder='Αναζήτηση εργασίας, πελάτη, ανάθεσης...', showDates=true, chips for priority/status (Όλες, Εκκρεμείς, Σε εξέλιξη, Ολοκληρωμένες, Ληξιπρόθεσμες), clearHref='/office/tasks'.",
+        "table_spec": "Wrap tasks list in TableShell with sticky header and priority badges.",
+        "pagination_spec": "Use ListPagination with default pageSize=25 (up to 200).",
+        "empty_state_spec": "Use EmptyState when no tasks are found.",
+        "testable_criteria": ["data-testid='filter-bar'", "data-testid='list-pagination'"]
+      },
+      "fees": {
+        "file_path": "src/app/office/fees/page.jsx",
+        "header_spec": "Use PageHeader with title 'Αμοιβές & Υπόλοιπα', description 'Παρακολούθηση μηνιαίων αμοιβών & ανεξόφλητων υπολοίπων πελατών', primary CTA '+ Καταχώρηση Αμοιβής'.",
+        "filter_bar_spec": "Use FilterBar with action='/office/fees', q, from, to, searchPlaceholder='Αναζήτηση πελάτη, ΑΦΜ, παραστατικού...', showDates=true, chips for fee status (Όλες, Εξοφλημένες, Με υπόλοιπο, Ληξιπρόθεσμες), clearHref='/office/fees'.",
+        "table_spec": "Wrap fee list in TableShell. All fee & balance numbers right-aligned font-mono tabular-nums.",
+        "pagination_spec": "Use ListPagination with default pageSize=25 (up to 200).",
+        "empty_state_spec": "Use EmptyState when no fees match search.",
+        "testable_criteria": ["data-testid='filter-bar'", "data-testid='list-pagination'"]
+      },
+      "documents": {
+        "file_path": "src/app/office/documents/page.jsx",
+        "header_spec": "Use PageHeader with title 'Έγγραφα Πελατών', description 'Αιτήματα & αρχείο εγγράφων πελατών γραφείου', primary CTA '+ Νέο Αίτημα Εγγράφων'.",
+        "filter_bar_spec": "Use FilterBar with action='/office/documents', q, from, to, searchPlaceholder='Αναζήτηση εγγράφου, τύπου, πελάτη...', showDates=true, chips for document status (Όλα, Εκκρεμή αιτήματα, Απεσταλμένα, Εγκεκριμένα), clearHref='/office/documents'.",
+        "table_spec": "Wrap document registry in TableShell. Action column with row dropdown menu.",
+        "pagination_spec": "Use ListPagination with default pageSize=25 (up to 200).",
+        "empty_state_spec": "Use EmptyState for empty document registry.",
+        "testable_criteria": ["data-testid='filter-bar'", "data-testid='list-pagination'"]
+      }
+    }
+  },
+  "colors": {
+    "theme_mode": "light_with_dark_toggle",
+    "palette": {
+      "background_light": "oklch(0.975 0.006 85)",
+      "foreground_light": "oklch(0.22 0.012 220)",
+      "card_light": "oklch(1 0.002 85)",
+      "primary_petrol": "oklch(0.45 0.075 200)",
+      "primary_foreground": "oklch(0.99 0.005 85)",
+      "secondary_light": "oklch(0.955 0.008 85)",
+      "accent_light": "oklch(0.94 0.018 195)",
+      "border_light": "oklch(0.9 0.008 85)",
+      "sidebar_bg": "oklch(0.24 0.03 215)",
+      "background_dark": "oklch(0.18 0.014 225)",
+      "foreground_dark": "oklch(0.95 0.006 200)",
+      "card_dark": "oklch(0.225 0.017 222)",
+      "primary_dark": "oklch(0.7 0.1 195)",
+      "border_dark": "oklch(1 0 0 / 12%)"
+    },
+    "status_badges": {
+      "success_emerald": "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800",
+      "warning_amber": "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800",
+      "error_red": "bg-red-50 text-red-700 border-red-200 dark:bg-red-950/40 dark:text-red-400 dark:border-red-800",
+      "draft_slate": "bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700",
+      "processing_blue": "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-400 dark:border-blue-800"
+    },
+    "rules": [
+      "PRESERVE EXACT current CSS OKLCH color tokens in src/app/globals.css.",
+      "DO NOT modify global color tokens or brand palette.",
+      "Floating panels, dropdowns and sticky headers MUST use backdrop-blur with opaque/semi-opaque backgrounds."
+    ]
+  },
+  "typography": {
+    "font_family": "Inter, system-ui, sans-serif",
+    "font_mono": "JetBrains Mono, monospace",
+    "currency_formatting": "Intl.NumberFormat('el-GR', { style: 'currency', currency: 'EUR' }) -> 1.234,56 €",
+    "date_formatting": "DD/MM/YYYY (e.g. 23/03/2026)"
+  },
+  "responsive_and_overflow": {
+    "rules": [
+      "Every flex child or grid item containing text MUST have min-w-0.",
+      "All tables MUST be wrapped in TableShell (<div className='overflow-x-auto rounded-xl border bg-card'>).",
+      "On mobile (390px), FilterBar wraps inputs cleanly without page horizontal scroll."
+    ]
+  },
+  "audit_checklist": [
+    "1. PageHeader present on every list page with title, description & primary CTA on top-right.",
+    "2. FilterBar present with search input, date range fields 'από — έως' where applicable, filter chips, and clear button.",
+    "3. Table Shell wraps all data tables with sticky header and right-aligned numeric font-mono tabular-nums.",
+    "4. Row action dropdown button has data-testid='row-actions-btn'.",
+    "5. ListPagination configured with default 25 and options up to 200.",
+    "6. EmptyState component rendered when no records match filter criteria.",
+    "7. All amounts formatted as 1.234,56 € and dates as DD/MM/YYYY.",
+    "8. Zero page-level horizontal overflow on 390px mobile viewport.",
+    "9. Dark mode contrast verified for all cards, text, badges, and inputs.",
+    "10. Interactive elements carry kebab-case data-testid attributes."
+  ],
+  "instructions_to_main_agent": [
+    "Implement the per-file minimal recommendations outlined in list_page_consistency_blueprint.",
+    "Preserve all actual current CSS color tokens in globals.css and all current brand/sidebar colors exactly.",
+    "Use existing primitives: PageHeader & EmptyState (components/page-header), FilterBar (components/list/filter-bar), ListPagination & TableShell (components/list/list-pagination), DateRangeFields (components/list/date-range-fields).",
+    "Do not change global typography or color tokens.",
+    "Ensure all interactive elements have kebab-case data-testid attributes."
+  ],
+  "UNIVERSAL GUIDELINES FOR MAIN AGENT": [
+    "Avoid generic centered layouts, simplistic gradients, and uniform styling.",
+    "All interactive and key informational elements MUST include data-testid attribute.",
+    "Never use transparent background in header or overlays without blur backdrop.",
+    "Ensure smooth hover, focus, and state transitions across all list pages."
+  ]
+}

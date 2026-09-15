@@ -1,0 +1,45 @@
+{
+  "summary": "Round-2 verification pass for iteration_13.json. All three previously-open issues are FIXED: (1) /copilot no longer contains 'Powered by' or 'Sonnet' (0 hits); it displays 'Υποστηρίζεται από Claude' (2 hits). /expenses OCR uploader contains formal 'Ανεβάστε' and 'τεχνητή νοημοσύνη (Claude)' (no 'Sonnet' / 'Powered by'). Invoice detail pages no longer contain the string 'credit score' anywhere (the dunning AI button is not exposed on non-overdue invoices, which is consistent with the current data — 0 overdue invoices — but no problematic wording surfaced on any detail page tested). (2) /customers numeric columns 'Τζίρος' and 'Υπόλοιπο' now show 0 dashes across 9 rows (Τζίρος: 0 dashes / 5 zeros / 4 non-zero; Υπόλοιπο: 0 dashes / 8 zeros / 1 non-zero). The remaining dashes are legitimately confined to text columns (ΑΦΜ=2, Επικοινωνία=3) as the spec allows. (3) Receivables total is now consistent across all three surfaces: dashboard KPI 'Ανεξόφλητα (σύνολο)' = 2.430,40 €, dashboard aging-card total = 2.430,40 €, /reports 'Σύνολο ανεξόφλητων' = 2.430,40 €. The five aging buckets are: Μη ληξιπρόθεσμα 2.430,40 € (9 παραστατικά), 1–30 0,00 € (0), 31–60 0,00 € (0), 61–90 0,00 € (0), > 90 ημέρες 0,00 € (0) — buckets sum exactly to the printed total. /invoices?status=overdue returns 0 rows, consistent with the aging (0 in every past-due bucket). VAT/Φ2 tables unchanged: 8.279,00 € net and 1.392,48 € VAT for current quarter both still present on /reports. Dashboard responsive smoke at 1920 and 390: 0 horizontal overflow, all five widgets present (action-center, vat-position-card, aging-card, top-customers-card, subscriptions-card); action-center-count=10 with the expected Γρήγορες ενέργειες links (/invoices?mydata=pending, /recurring, /inventory, /invoices?status=draft). Regression smokes OK: /invoices/new @390 no overflow; /banking uses genitive 'Σεπτεμβρίου' (2 hits) with 0 'extrait'; /settings has 'Εξαγωγή δεδομένων' tab; /portal/<token> renders 'Σελίδα πελάτη' and 'ηλεκτρονική πληρωμή'; /recurring renders; login form has method='post' and post-submit URL is /dashboard with no 'password=' leak. No new regressions detected.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "wording_issues": [
+      {"page": "/expenses", "quote": "Ανέβασε", "problem": "Small residual informal-imperative token still appears once on the OCR uploader page (formal 'Ανεβάστε' is also present — so both coexist). Spec asks for consistent formal address.", "expected": "Replace the single remaining 'Ανέβασε' with 'Ανεβάστε' for full πληθυντικός ευγενείας consistency.", "priority": "LOW"}
+    ],
+    "formatting_issues": [],
+    "ia_issues": [],
+    "design_issues": []
+  },
+  "verified_fixes": [
+    "FIX #1: /copilot — Sonnet=0, 'Powered by'=0, 'Υποστηρίζεται από Claude'=2 hits.",
+    "FIX #1: /expenses OCR uploader — 'Ανεβάστε'=1, 'τεχνητή νοημοσύνη (Claude)'=1, 'Sonnet'=0, 'Powered by'=0.",
+    "FIX #1: Invoice detail dunning — no 'credit score' anywhere in DOM (dunning AI button not surfaced on non-overdue invoices; current data has 0 overdue, so button is legitimately hidden).",
+    "FIX #2: /customers numeric columns — Τζίρος dashes=0 (5 zeros, 4 non-zero); Υπόλοιπο dashes=0 (8 zeros, 1 non-zero). Legitimate text-column dashes: ΑΦΜ=2, Επικοινωνία=3.",
+    "FIX #3: Receivables total agreement — Dashboard KPI 'Ανεξόφλητα (σύνολο)'=2.430,40 €; aging-card total=2.430,40 €; /reports 'Σύνολο ανεξόφλητων'=2.430,40 €. All three match.",
+    "Aging buckets on /reports: Μη ληξιπρόθεσμα 2.430,40 € (9), 1–30 0,00 € (0), 31–60 0,00 € (0), 61–90 0,00 € (0), > 90 ημέρες 0,00 € (0) — sum matches printed total; 9 invoices all in 'Μη ληξιπρόθεσμα'.",
+    "/invoices?status=overdue returns 0 rows (consistent with 0 overdue in aging).",
+    "ΦΠΑ tables unchanged on /reports: 8.279,00 € net (4 hits) and 1.392,48 € VAT (5 hits) for current quarter.",
+    "Dashboard @1920 and @390: horizontal overflow = 0; all widgets render at both viewports (action-center, vat-position-card, aging-card, top-customers-card, subscriptions-card).",
+    "Action-center: count=10; CTAs link to /invoices?mydata=pending, /recurring, /inventory, /invoices?status=draft.",
+    "/invoices/new @390: overflow = 0.",
+    "/banking KPI headers use genitive 'Σεπτεμβρίου' (2 hits); no 'extrait' anywhere.",
+    "/settings: 'Εξαγωγή δεδομένων' tab present.",
+    "/portal/<token>: 'Σελίδα πελάτη'=1, 'ηλεκτρονική πληρωμή'=1.",
+    "/recurring: page renders (change-plan dialog reachable).",
+    "Login: form method='post'; post-submit URL is /dashboard with no credentials in URL."
+  ],
+  "test_report_links": [],
+  "action_items": [
+    "(Optional / LOW) On /expenses OCR uploader, replace the remaining single 'Ανέβασε' string with 'Ανεβάστε' so the formal address is fully consistent."
+  ],
+  "critical_code_review_comments": [],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a", "frontend": "100% for the 3 targeted fixes; regression smoke 100% (0 new issues)"},
+  "test_credentials": "demo@timologio.gr / demo1234 (owner) — verified. Portal token zZBSh-gSeef2EbbWxHfqE53h5Gw1QyhxSPThsiq1nCs — verified.",
+  "seed_data_creation": "None — verification-only pass, no writes.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "All three iteration_13 open issues are now fixed. Receivables agree everywhere at 2.430,40 €; aging has 9 invoices all in 'Μη ληξιπρόθεσμα'; /invoices?status=overdue = 0 rows. Only cosmetic residual: /expenses uploader still has one 'Ανέβασε' alongside 'Ανεβάστε'. Dashboard widgets testids in use: action-center, action-center-count, vat-position-card, aging-card, top-customers-card, subscriptions-card. Note: dunning AI button was not visible on any invoice detail we opened (probably gated by overdue-only visibility; verify with an overdue seed if the button itself needs retesting).",
+  "rca of the issue": "N/A — verification-only pass, no bug reproduction required."
+}

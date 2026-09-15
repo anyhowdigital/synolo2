@@ -1,0 +1,1 @@
+ALTER TABLE `organizations` ADD `accounting_bridge_json` text DEFAULT '{}' NOT NULL;

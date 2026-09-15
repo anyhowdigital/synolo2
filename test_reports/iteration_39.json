@@ -1,0 +1,19 @@
+{
+  "summary": "Phase 3d Accountant Tax-Advisor tools tested end-to-end: per-client advisor page renders (title, 4 KPIs, benchmark card, 7 opportunities); ASSIGN opportunity dialog creates office_tasks row (code 'advisor:efka_category_choice', title 'Ευκαιρία: Επιλογή ασφαλιστικής κατηγορίας ΕΦΚΑ', assignee + due 2026-03-31) — success toast shown, task appears on /office/tasks; EMAIL tax plan dialog succeeded (prefilled email 'info@papadopoulos-it.gr') with toast 'Το πλάνο καταχωρήθηκε στο Outbox (χωρίς SMTP)' and DB row in email_outbox with subject 'Φορολογικό πλάνο 2026 — Δήμος Παπαδόπουλος & ΣΙΑ Ε.Ε.', status 'logged', attachment 'forologiko-plano-800000118-2026.pdf' (34,309 bytes) recorded; PDF endpoint returns 200 application/pdf, %PDF header, header X-Document-Code=TZUTE-G6K4W, and issued_documents contains tax_plan rows; Wiring verified — /office/advisor has office-advisor-pdf-<orgId> link, /office/clients/<orgId>/ has client360-tax-plan-link pointing to /advisor; Benchmark shows 4.6% eff. tax rate, 29.6% benefit ratio, rank #1/1. Light regression: owner demo@timologio.gr login OK, /invoices/new loads and line item description accepts typed input.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "src/components/office/client-advisor-panel.tsx: `const router = useRouter()` in TaxPlanEmailButton is declared AFTER it's referenced inside the `send` closure (line 26). It works because the closure is called after component render, but it's confusing style — move the hook to the top of the component with the other hooks.",
+    "office-advisor.ts emailTaxPlanAction: variable `yearEnd` is computed but unused inside the action (only passed to renderTaxPlanPdf via `yearEnd`) — verify renderer actually consumes it; if not, dead code. Also `revalidatePath` is called before checking `res.ok`, so a failed send still triggers cache invalidation.",
+    "assignOpportunityAction: severity coerced to only 'high' or 'medium' — 'info' opportunities silently become 'medium'. Consider preserving original severity or documenting the mapping."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "office@koletsas.gr / office1234 ; demo@timologio.gr / demo1234",
+  "seed_data_creation": "Created 1 office_task (advisor:efka_category_choice, due 2026-03-31, assignee owner) and 1 email_outbox 'logged' row + 1 issued_documents tax_plan entry for org fa82eab8-ce41-4d73-8a3f-05a0f63f1002. Non-destructive to business data.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Advisor page path: /office/clients/<orgId>/advisor. Testids used: client-advisor-title, client-advisor-benchmark, client-advisor-opportunities, client-advisor-pdf-link, tax-plan-email-open/-input/-message/-send, assign-open-<ruleCode>/-member-/-due-/-submit-, office-advisor-pdf-<orgId>, client360-tax-plan-link. PDF endpoint /api/office/tax-plan/pdf?org=<id> confirmed returning application/pdf with X-Document-Code header. sendMail falls back to email_outbox (status='logged') when no SMTP configured — intended behavior."
+}

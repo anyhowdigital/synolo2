@@ -1,0 +1,134 @@
+{
+  "summary": "Iteration 33 — PRE-FIX baseline diagnostic reproduction. Read-only DB + real-module invocations + live UI capture. NO source changes. Regenerated the six code-level bugs still active in ubl.ts / b2g.ts / bonuses.ts / payroll.ts, verified two are already partially patched (normalizeStatus reject-first ordering; unsupported adjustments now throws a friendly message via B2G_ADJUSTMENT_ERROR instead of a raw 500). Confirmed live UI: hydration mismatch on /invoices/new (line id randomness), settings tab-URL is not source-of-truth, and confirmed credit-note sign inconsistency in the invoice list. SQLite integrity is clean — 0 FK violations, 0 cross-org invoices, 0 duplicate issued numbers, 0 invoice totals mismatch, 0 leave overlaps, 0 GL journal imbalance across 337 invoices / 496 lines / 6 orgs / 100 customers.",
+  "reproductions": {
+    "ubl_credit_note_root": {
+      "input": "invoiceType=5.1, quantity=3, netValue=100, VAT 24",
+      "emitted": {"rootTag": "Invoice", "typeCode": "InvoiceTypeCode>381", "hasCreditNoteNamespace": false, "lineTag": "InvoiceLine", "quantityTag": "InvoicedQuantity", "hasBillingReference": false},
+      "verdict": "BUG — ubl.ts:132-133 compute root/lineTag correctly but ubl.ts:184/164/166 use hardcoded <Invoice>/<cac:InvoiceLine>/<cbc:InvoicedQuantity>. BT-25 (BillingReference) is never emitted despite correlatedInvoiceId being present."
+    },
+    "br24_price_line_extension": {
+      "priceAmount": 33.33, "quantity": 3, "product": 99.99, "lineExtensionAmount": 100.00,
+      "verdict": "BUG — PEPPOL BR-24 requires PriceAmount × Quantity == LineExtensionAmount. ubl.ts:162 rounds unitPrice to 2 decimals. Fix: use base_quantity or emit price with 4-6 decimals."
+    },
+    "unsupported_b2g_adjustments": {
+      "flag": true,
+      "throw_message": "Το B2G για παρακρατήσεις/χαρτόσημο χρειάζεται επαληθευμένη αντιστοίχιση του παρόχου. Δεν δημιουργείται ούτε αποστέλλεται XML με ασυνεπή σύνολα.",
+      "verdict": "PARTIAL — the raw 500 has been replaced with a user-facing message string (ubl.ts:130). Server actions/route handlers still need to catch it and validateB2G still does NOT preemptively guard (imported but not called)."
+    },
+    "validateB2G_cancelled": {
+      "status": "cancelled", "errors": [], "guardsCancelled": false,
+      "verdict": "BUG — services/b2g.ts:23 only rejects status==='draft'. cancelled/void invoices pass validation."
+    },
+    "normalizeStatus": {
+      "not accepted": "rejected", "unsuccessful": "rejected", "failed": "rejected",
+      "Accepted by entity": "pending", "ΑΠΟΔΕΚΤΟ": "pending", "Sent to buyer": "pending", "PARTIALLY_ACCEPTED": "pending", "delivered": "accepted",
+      "verdict": "PARTIAL — reject-first ordering FIXED since iter31/32 (not accepted / unsuccessful now correctly rejected). Still buggy: anchored regex misses common provider strings like 'Accepted by entity', 'ΑΠΟΔΕΚΤΟ', 'Sent to buyer', 'PARTIALLY_ACCEPTED' → all fall through to pending."
+    },
+    "leaveAllowance_endDate": {
+      "noEnd": 600, "endJan31": 600,
+      "verdict": "BUG — bonuses.ts:93 ignores emp.endDate; terminated employees receive full-year allowance identical to full-year workers."
+    },
+    "computeItem_salaried_days": {
+      "days_25_gross": 1200, "days_1_gross": 48,
+      "verdict": "BUG — payroll.ts:157 uses shift-row COUNT as `days` for salaried employees. A monthly-salaried employee with 1 shift row gets €48 instead of €1200."
+    }
+  },
+  "db_integrity_read_only": {
+    "integrity_check": "ok",
+    "fk_violations": 0,
+    "counts": {"orgs": 6, "customers": 100, "invoices": 337, "invoice_lines": 496},
+    "cross_org_invoice_vs_customer": 0,
+    "cross_org_invoice_vs_line": 0,
+    "cross_org_invoice_vs_payment": 0,
+    "duplicate_issued_series_number": 0,
+    "invoice_totals_mismatch_gt_0.02": 0,
+    "leave_request_overlaps_same_employee": 0,
+    "gl_journal_entries_imbalance_gt_0.01": 0,
+    "tables_count": 77
+  },
+  "frontend_reproductions": {
+    "hydration_mismatch_invoices_new": "CONFIRMED — React hydration error: label htmlFor / input id differ between server (qty-l1789401710757-0) and client (qty-l1789401711417-0). Root cause: InvoiceEditor generates line ids via a client-only counter/Math.random, not a deterministic seed. Affects /invoices/new and any page using InvoiceEditor.",
+    "settings_url_tab_not_source_of_truth": "CONFIRMED — after clicking «Διασυνδέσεις & API» URL becomes ?tab=developer. Clicking «Τιμολόγηση» tab afterwards leaves URL at ?tab=developer (mixed <TabsTrigger asChild Link> vs regular TabsTrigger; defaultValue not value). settings/page.tsx:119-126.",
+    "invoices_list_credit_sign_inconsistency": "CONFIRMED — ΠΤ-0001: Καθαρό «200,00 €» (positive) while Σύνολο «-248,00 €» (negative). U2 in audit_fabble still active.",
+    "mobile_390_invoices_overflow": "NO horizontal doc scroll on /invoices at 390×844 (docWidth=390=viewport). Page renders a card layout on mobile. Note: the underlying <table> element scrollWidth=614 but is wrapped in overflow container; iter30 finding of full-page horizontal scroll appears MITIGATED. Screenshot: /app/test_reports/iter33_mobile_invoices.jpeg.",
+    "login_hydration": "NO hydration errors detected on /login page load or during login flow."
+  },
+  "backend_issues": {
+    "critical": [
+      {"endpoint": "buildPeppolInvoiceXml credit note (ubl.ts:132-233)", "issue": "Emits root <Invoice> + <InvoiceLine> + InvoicedQuantity + InvoiceTypeCode>381 for credit notes; must be <CreditNote xmlns=CreditNote-2> + <CreditNoteLine> + <CreditedQuantity> + <CreditNoteTypeCode>. Also no <cac:BillingReference> (BT-25) even though correlatedInvoiceId exists.", "priority": "CRITICAL"},
+      {"endpoint": "buildPeppolInvoiceXml (ubl.ts:162)", "issue": "BR-24 violation: unitPrice rounded to 2 decimals → PriceAmount × Quantity (33.33×3=99.99) ≠ LineExtensionAmount (100.00). Use BaseQuantity or emit PriceAmount with 4-6 decimals.", "priority": "CRITICAL"},
+      {"endpoint": "computeRun (payroll.ts:157)", "issue": "Uses shift COUNT as `days` for salaried employees — monthly-salaried with 1 shift → gross 48€ instead of 1200€.", "priority": "CRITICAL"}
+    ],
+    "high": [
+      {"endpoint": "normalizeStatus (b2g/providers.ts:172-177)", "issue": "Anchored regex misses common provider strings ('Accepted by entity', 'ΑΠΟΔΕΚΤΟ', 'Sent to buyer', 'PARTIALLY_ACCEPTED', 'delivered' works). Add case-insensitive contains-checks or explicit map per provider.", "priority": "HIGH"},
+      {"endpoint": "leaveAllowance (bonuses.ts:93-100)", "issue": "Ignores emp.endDate entirely — terminated employees receive full-year allowance.", "priority": "HIGH"},
+      {"endpoint": "validateB2G (services/b2g.ts:16-37)", "issue": "No guard for status in ('cancelled','void'); imports hasUnsupportedB2GAdjustments/B2G_ADJUSTMENT_ERROR but never calls them, so users still hit the throw at XML build time instead of a pre-send validation error.", "priority": "HIGH"}
+    ],
+    "minor": [
+      {"endpoint": "PaymentMeansCode hardcoded '58' in ubl.ts:224", "issue": "SEPA credit transfer regardless of actual invoice payment method; missing <cac:PaymentTerms>, <cbc:PaymentDueDate>, <cac:AllowanceCharge>, <cac:WithholdingTaxTotal>, <cbc:AccountingCost>."},
+      {"endpoint": "validateB2G BT-11 (b2g.ts:33)", "issue": "Strict regex ^[123]\\|.+ blocks resend; PEPPOL BIS 3.0 treats project reference as optional — should be warning, not error."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "InvoiceEditor (invoices/new)", "issue": "SSR/client hydration mismatch: line item htmlFor/id (qty-*, price-*, disc-*) are generated non-deterministically → React re-renders and won't patch; potential wrong initial values and lost focus", "selector": "label[for^='qty-l']", "priority": "HIGH"},
+      {"component": "settings/page.tsx tabs", "issue": "2 of 15 tabs use asChild <Link> so URL becomes ?tab=developer, but subsequent tab clicks (not links) don't update URL. defaultValue not `value`. Confirmed: click 'Διασυνδέσεις & API' then click 'Τιμολόγηση' → URL stays ?tab=developer.", "selector": "[role='tablist']", "priority": "HIGH"},
+      {"component": "invoices-table.tsx:186", "issue": "Credit note ΠΤ-0001 shows Καθαρό 200,00 € (positive) but Σύνολο -248,00 € (negative). Sign inconsistency between columns.", "selector": "table tr td", "priority": "MEDIUM"}
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "positive_findings": [
+    "SQLite integrity_check=ok, no FK violations, no cross-org leaks between invoices/customers/lines/payments",
+    "No duplicate (org_id, series_code, number) tuples in issued/paid invoices",
+    "All 337 issued/paid invoices have net+vat-withheld+stamp ≈ gross (0 mismatches beyond ±0.02)",
+    "No overlapping approved/pending leave_requests for the same employee",
+    "GL entries all balanced (0 out of all entries with |debit-credit|>0.01)",
+    "normalizeStatus reject-first ordering has been fixed since iter31/32 (regression protected by new test)",
+    "athensIso now emits correct +02:00/+03:00 wall-clock offset (fixed since iter31/32)",
+    "buildPeppolInvoiceXml with withholding no longer throws a raw exception — a user-friendly message string is used (still needs try/catch upstream)",
+    "Mobile 390×844 /invoices no longer overflows the document (card layout kicks in). iter30 U3 appears mitigated."
+  ],
+  "critical_code_review_comments": [
+    "ubl.ts:184 root element `<Invoice ...>` is hardcoded — the correctly-computed `root` (line 132) is dead code. Same for `lineTag` (line 133).",
+    "ubl.ts:162 `unitPrice = round2(netValue / quantity)` is the direct cause of BR-24 failures for any quantity>1 producing non-terminating decimals.",
+    "ubl.ts:224 PaymentMeansCode='58' is not derived from invoice.paymentMethod.",
+    "services/b2g.ts imports hasUnsupportedB2GAdjustments and B2G_ADJUSTMENT_ERROR (line 8) but neither is invoked inside validateB2G — dead imports, live footgun.",
+    "services/b2g.ts:23 status guard is `=== 'draft'` only. Should also block cancelled/void.",
+    "bonuses.ts:93 leaveAllowance is inconsistent with easterBonus/christmasBonus which correctly use daysWithin({hire..endDate}, year).",
+    "payroll.ts:157 couples shift-row count with days for salaried; must branch on contractType/grossSalary.",
+    "settings/page.tsx:119-126 mixes <TabsTrigger asChild><Link>> with plain <TabsTrigger>; uses defaultValue not value. URL is not a source of truth.",
+    "InvoiceEditor line-item id generation is not SSR-safe (Math.random or Date.now()-based). Must use useId() or a stable seed."
+  ],
+  "test_report_links": [
+    "/app/frontend/scripts/diagnostic_iter33.ts",
+    "/app/frontend/scripts/diagnostic_iter31.ts",
+    "/app/test_reports/iter33_mobile_invoices.jpeg",
+    "/app/test_reports/iter33_mobile_settings.jpeg",
+    "/app/test_reports/iter33_desktop_invoices.jpeg"
+  ],
+  "action_items": [
+    "CRITICAL: ubl.ts — switch root to <CreditNote xmlns='urn:oasis:names:specification:ubl:schema:xsd:CreditNote-2'> when credit; emit <CreditNoteLine>, <CreditedQuantity>, <CreditNoteTypeCode>. Emit <cac:BillingReference><cac:InvoiceDocumentReference><cbc:ID>{correlated document number}</cbc:ID></cac:InvoiceDocumentReference></cac:BillingReference>.",
+    "CRITICAL: ubl.ts — fix BR-24 by using BaseQuantity or 4-6 decimals in PriceAmount so that Price×Qty == LineExtensionAmount exactly.",
+    "CRITICAL: payroll.ts:157 — for salaried (grossSalary>0) default `days` to 25 (or override), only use shift count for hourly/daily.",
+    "HIGH: b2g/providers.ts — build an explicit map for known provider phrases (accepted/pending/sent/rejected) BEFORE falling back to fuzzy regex; handle Greek strings.",
+    "HIGH: services/b2g.ts:validateB2G — actually call hasUnsupportedB2GAdjustments (returned as error) and reject status in ('cancelled','void').",
+    "HIGH: bonuses.ts:leaveAllowance — prorate by daysWithin({hireDate..endDate}) like christmasBonus/easterBonus.",
+    "HIGH: InvoiceEditor line ids — use React.useId() or a deterministic counter so SSR and client match.",
+    "HIGH: settings/page.tsx — make tabs consistent: either all Link-based (real routes) or all TabsTrigger with value={activeTab from URL} + router.replace(?tab=…) on change; drop asChild inconsistency.",
+    "MEDIUM: invoices-table.tsx — decide credit-note sign convention and apply to BOTH net & gross columns, or to none (badge only).",
+    "MEDIUM: b2g/ubl.ts — derive PaymentMeansCode from invoice.paymentMethod; emit PaymentTerms/PaymentDueDate/AllowanceCharge/WithholdingTaxTotal/AccountingCost."
+  ],
+  "updated_files": ["/app/frontend/scripts/diagnostic_iter33.ts (new, diagnostic only)"],
+  "success_rate": {
+    "backend_diagnostic": "7/7 targeted module calls executed",
+    "db_integrity": "8/8 checks executed — all clean",
+    "frontend_repro": "5/5 UI checks executed (hydration, settings-URL, credit-sign, mobile overflow, login)"
+  },
+  "test_credentials": "demo@timologio.gr / demo1234 (owner) — used only for read-only navigation. office@koletsas.gr not needed this iteration.",
+  "seed_data_creation": "none",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Run diagnostic: `cd /app/frontend && ./node_modules/.bin/tsx --tsconfig tsconfig.json scripts/diagnostic_iter33.ts` — prints a full JSON. Reuse for post-fix regression. Preview URL: https://cashflow-pro-295.preview.emergentagent.com (APP_URL in /app/frontend/.env; REACT_APP_BACKEND_URL is intentionally absent — FastAPI on :8001 is a pass-through proxy to Next on :3000). DB is at /app/frontend/data/timologio.db; the diagnostic opens it via @libsql/client in file mode. If schema evolves and columns move, rerun `PRAGMA table_info(<table>)` — current schema uses snake_case column names. invoice_lines and payments have their own org_id where relevant, gl_lines uses entry_id.",
+  "rca_of_issues": "See critical_code_review_comments — each bug is tied to a specific source line and reproduced against actual production modules with typed fixtures. No historical DB records were modified."
+}

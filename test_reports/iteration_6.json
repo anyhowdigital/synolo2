@@ -1,0 +1,53 @@
+{
+  "summary": "Iteration 8 static + curl verification of 4 items: Viva webhook, PWA, IRIS payload, Marketplace Templates. Viva webhook endpoint and PWA static assets fully pass. IRIS payload builder and Marketplace TEMPLATES action are correctly implemented. However, two required integrations are MISSING in wiring: (1) layout.tsx does NOT import ServiceWorkerRegister and does NOT declare manifest/themeColor metadata; (2) settings/page.tsx AADE tab renders only AadeCredentialsForm and does NOT render MarketplaceTemplates.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "PWA installability wiring",
+        "issue": "/app/frontend/src/app/layout.tsx does not import <ServiceWorkerRegister/> nor mount it in <body>, and metadata is missing manifest:'/manifest.webmanifest' and themeColor. Without these, sw.js is never registered by clients and the app is not installable. Files exist and are HTTP-200 accessible, but not linked from the app shell.",
+        "affected_selectors": ["/app/frontend/src/app/layout.tsx"]
+      },
+      {
+        "flow": "Marketplace Templates in AADE settings tab",
+        "issue": "/app/frontend/src/app/(app)/settings/page.tsx AADE TabsContent renders only <AadeCredentialsForm/>. <MarketplaceTemplates/> is not imported and not rendered, so the user cannot apply lawyer/doctor/engineer/eshop packages. Component and server action file exist and are correct.",
+        "affected_selectors": ["settings/page.tsx TabsContent value='aade'"]
+      }
+    ],
+    "design_issues": []
+  },
+  "verified_working": [
+    "GET /api/webhooks/viva/<orgId> with no VIVA_WEBHOOK_KEY → 200 {\"Key\":\"not_configured\"} ✓",
+    "POST /api/webhooks/viva/fake-org-id EventTypeId=1796 + MerchantTrns=fake → 404 {\"ok\":false,\"error\":\"org_not_found\"} ✓",
+    "POST /api/webhooks/viva/fake-org-id EventTypeId=1797 → 200 {\"ok\":true,\"ignored\":\"event_1797\"} ✓",
+    "Idempotency logic: SELECT payments WHERE reference=transactionId then skip is present in route.ts (verified statically) ✓",
+    "PWA static files served 200: /manifest.webmanifest (application/manifest+json), /sw.js, /icon-192.svg, /icon-512.svg ✓",
+    "sw.js has install/activate/fetch/sync handlers, queues POST /api/expenses when offline into IndexedDB db='tc-offline' store='expenses' with sync tag 'expenses-outbox' ✓",
+    "iris.ts buildIrisPayload({beneficiaryName,iban,amount,invoiceNumber,bic?,info?}) exported; returns newline-separated payload starting with 'BCD\\n001\\n1\\nSCT\\n' ✓",
+    "viva-iris-payment.tsx imports buildIrisPayload from '@/lib/payments/iris' and uses encodeURIComponent(irisPayload) in QR src when iban provided ✓",
+    "actions/marketplace.ts exports applyTemplate + TEMPLATES with keys lawyer/doctor/engineer/eshop, each having series[] and products[] ✓",
+    "components/settings/marketplace-templates.tsx exports MarketplaceTemplates with 4 template cards + data-testid='template-apply-{id}' apply buttons ✓"
+  ],
+  "test_report_links": [],
+  "action_items": [
+    "Edit /app/frontend/src/app/layout.tsx: import { ServiceWorkerRegister } from '@/components/pwa/service-worker-register', render <ServiceWorkerRegister/> inside <body>, and add manifest:'/manifest.webmanifest' + themeColor:'#2563eb' to the exported metadata (or export a Viewport with themeColor for Next 15).",
+    "Edit /app/frontend/src/app/(app)/settings/page.tsx: import { MarketplaceTemplates } from '@/components/settings/marketplace-templates' and render it inside <TabsContent value='aade'> next to <AadeCredentialsForm/> (wrap both in a grid gap-6)."
+  ],
+  "critical_code_review_comments": [
+    "route.ts imports randomUUID but never uses it — dead import, remove.",
+    "Viva webhook does NOT verify the incoming request against VIVA_WEBHOOK_KEY (Viva sends the key back in headers/body per Viva docs). Currently anyone can POST 1796 with a real orgId+invoiceId and mark invoices paid. Consider validating a shared secret or signature header before recordPayment.",
+    "sw.js precache list includes '/' which is a dynamic app route (force-dynamic in layout); addAll('/') may fail depending on auth. addAll is wrapped in catch(()=>{}) so ok, but consider removing '/' from PRECACHE.",
+    "manifest icons use purpose 'any maskable' with SVG — some Android launchers still prefer PNG maskables; not blocking."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100%", "frontend": "50% (2 of 4 features fully wired; static assets & endpoints pass but not mounted in app shell)"},
+  "seed_data_creation": "",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "After main agent wires ServiceWorkerRegister + manifest metadata in layout.tsx and adds MarketplaceTemplates to aade TabsContent, re-verify by: (a) fetching '/' and grepping the HTML for '<link rel=\"manifest\"' and the sw.js registration script, and (b) rendering /settings?tab=aade and checking for data-testid='template-apply-lawyer/doctor/engineer/eshop'.",
+  "rca of the issue": "The wiring PRs for PWA and Marketplace Templates were partially merged: the component/asset files landed but the two mount-point files (root layout.tsx and settings/page.tsx aade tab) were not updated."
+}

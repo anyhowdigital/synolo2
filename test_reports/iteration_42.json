@@ -1,0 +1,22 @@
+{
+  "summary": "End-to-end tested the new Super-Admin panel (login, dashboard stats, org filters, /admin/plans persistence, per-org overrides on org detail page, trial extension, audit log) and the capability enforcement for the demo org via the banking UpgradeNotice. All 9 requested flows passed. Demo org overrides were restored to 'Από πλάνο' after enforcement test so it is not left broken.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Trial date input was left at 2027-01-15 after the test (previous was 2026-09-26 - already past). Harmless since org stays on trial with all caps, but main agent may want a way to revert trial via UI too.",
+    "No dedicated 'clear overrides' button (admin-overrides-clear-<id>) — reset is done by setting every capability select back to 'plan' and clicking Αποθήκευση. Works, but a single-click Καθαρισμός would improve UX (already exists on plans page)."
+  ],
+  "updated_files": [],
+  "success_rate": { "backend": "100%", "frontend": "100%" },
+  "test_credentials": "Super-admin konstantinos@anyhow.gr / drus5sWe!!! ; demo owner demo@timologio.gr / demo1234",
+  "seed_data_creation": "None. Post-test state: demo org (fa82eab8…1002) overrides fully reset to 'Από πλάνο'. Trial ends 2027-01-15 (extended from 2026-09-26 during trial-extension test).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "All admin panel flows are working: (1) /admin/login rejects wrong password with Greek 'Λάθος στοιχεία super-admin.' and accepts correct creds. (2) /admin dashboard stats cards render (6 orgs, 6 trialing, 9/28 users). (3) admin-filter-form filters by q/plan/status and Καθαρισμός resets. (4) /admin/plans capability toggles + invoice/user limits persist across reload via platform_settings. (5) /admin/orgs/<id> shows users, invoice count, trial form, impersonate btn, and 12 capability selects + limit selects; setting banking=off + Αποθήκευση persists in organizations.overrides_json. (6) /admin/audit shows rows with correct testids (admin-audit-<id>) for Overrides οργανισμού, Ενημέρωση trial, Overrides πλάνων. (7) ENFORCEMENT: with banking=off override, demo@timologio.gr sees UpgradeNotice on /banking ('Ταμείο & τράπεζες – περιλαμβάνεται από το πακέτο Starter … Αναβάθμιση σε Starter'). (8) Regression: /dashboard, /projects, /pos all load normally for demo with no overrides. Restored overrides after test."
+}

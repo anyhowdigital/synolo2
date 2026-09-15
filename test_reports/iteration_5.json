@@ -1,0 +1,34 @@
+{
+  "summary": "Backend-only static + curl verification of iteration-7 items (Accountant Cockpit, Viva Smart Checkout, SignaturePad reuse, memberships schema). All 5 review-request checks passed.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": { "ui_bugs": [], "integration_issues": [], "design_issues": [] },
+  "checks_performed": [
+    {"item": "Cockpit page.tsx uses getCurrentUser (not getSession)", "result": "PASS — line 7 imports getCurrentUser from @/lib/auth/session; line 28 calls await getCurrentUser(db). getCurrentUser is defined at /app/frontend/src/lib/auth/session.ts:59."},
+    {"item": "GET /accountant/cockpit unauth", "result": "PASS — returns HTTP 307 with Location: https://cashflow-pro-295.preview.emergentagent.com/login (redirect target matches redirect('/login?next=...') logic; framework serialises to /login)."},
+    {"item": "Cockpit query joins memberships x organizations", "result": "PASS — line 31: db.select({m:memberships,o:organizations}).from(memberships).innerJoin(organizations, eq(organizations.id, memberships.orgId)).where(eq(memberships.userId, user.id))."},
+    {"item": "Per-org summary fields", "result": "PASS — receivables (line 42), openInvoiceCount (46), unclassifiedExpenseCount (47), mydataErrorCount (48)."},
+    {"item": "nextVatDeadline() returns Greek quarter labels", "result": "PASS — line 23 builds `${['Α','Β','Γ','Δ'][q]}' τρίμηνο ${year}` with due=30th of month after quarter end."},
+    {"item": "POST /api/viva/checkout with {token:'nonexistent'}", "result": "PASS — HTTP 404, body {\"ok\":false,\"error\":\"not_found\"}."},
+    {"item": "POST /api/viva/checkout with {} (missing token)", "result": "PASS (bonus) — HTTP 400 missing_token."},
+    {"item": "POST /api/viva/checkout with malformed JSON", "result": "PASS (bonus) — HTTP 400 invalid_json."},
+    {"item": "Viva env-var driven demo mode", "result": "PASS — route.ts lines 38-53: when VIVA_MERCHANT_ID or VIVA_API_KEY missing, returns {ok:true, mode:'demo', checkoutUrl:`${appUrl}/p/${token}/pay?viva=demo`, message}."},
+    {"item": "Viva live payload shape", "result": "PASS — lines 57-81: Basic auth = Buffer.from(`${mId}:${apiKey}`).toString('base64'); POST to `${base}/checkout/v2/orders` with amount=Math.round(remaining*100), customerTrns, customer.fullName + countryCode + requestLang, sourceCode, tags:['timologio-cloud',`invoice:${inv.id}`]. Extracts orderCode (both casings) and builds checkoutBase URL."},
+    {"item": "viva-iris-payment.tsx payWithViva wiring", "result": "PASS — lines 25-39: fetch('/api/viva/checkout', POST, JSON body {token: window.location.pathname.split('/')[2] ?? ''}); handles !d.ok toast.error; distinguishes d.mode==='demo' vs live via toast.info + message; sets window.location.href = d.checkoutUrl."},
+    {"item": "SignaturePad reused component", "result": "PASS — /app/frontend/src/components/public/signature-pad.tsx exists, client-side ('use client'), pointer-based (onPointerDown/Move/Up/Leave/Cancel), exports SignaturePad({onChange:(dataUrl:string|null)=>void}), has clear() that calls onChange(null), emits PNG data URL via canvas.toDataURL('image/png')."},
+    {"item": "memberships schema", "result": "PASS — PRAGMA table_info returns id, user_id, org_id, role, created_at, notification_prefs_json — all four required columns (id, org_id, user_id, role) present."}
+  ],
+  "critical_code_review_comments": [
+    "nextVatDeadline: due date = 30th of the month, but Feb has no day 30; JS Date will roll over to March 1-2. For Q4 (deadline late Jan), this produces Feb 30 → Mar 2, which mislabels the deadline. Consider clamping or using an explicit day-30 rule with month-end fallback.",
+    "Cockpit does not filter by role (accountant/owner/member) — comment on line 30 says 'accountant/owner/member' but the query returns ALL memberships regardless of role. If cockpit is intended only for accountant/owner roles, add a role filter.",
+    "viva-iris-payment.tsx: pathname parsing `pathname.split('/')[2]` is fragile; assumes /p/<token>/... structure. If the component is reused elsewhere, this silently sends an empty token. Consider passing token as a prop.",
+    "viva/checkout route.ts: returns raw Viva error text (sliced to 200 chars) with status 502 — acceptable for now, but consider structured error mapping in production."
+  ],
+  "test_report_links": [],
+  "action_items": [],
+  "updated_files": [],
+  "success_rate": { "backend": "100%", "frontend": "n/a (skipped per request)" },
+  "seed_data_creation": "None",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "All 5 iteration-7 review items verified via static inspection + 4 curl calls. VIVA_* env-vars still unset (demo mode confirmed). No live Viva credentials tested. Fresh DB migrations 0001-0018 in place; memberships schema OK. Cockpit auth-gate returns 307→/login. Optional follow-ups captured in critical_code_review_comments (VAT deadline Feb-30 edge case, missing role filter, brittle pathname split)."
+}
